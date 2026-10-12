@@ -72,6 +72,7 @@ await db.begin(async (tx) => {
   await tx.unsafe(
     "CREATE TABLE IF NOT EXISTS gna_upload_effects(id bigserial PRIMARY KEY,batch_id uuid NOT NULL REFERENCES gna_upload_batches(id),entity text NOT NULL,record_key text NOT NULL,field text NOT NULL,old_value jsonb,new_value jsonb,created_at timestamptz NOT NULL DEFAULT now(),UNIQUE(batch_id,entity,record_key,field))",
   );
+  await tx.unsafe("ALTER TABLE gna_users ADD COLUMN IF NOT EXISTS account_id bigint REFERENCES gna_main_accounts(id)");
   await tx.unsafe(
     "ALTER TABLE gna_upload_batches ADD COLUMN IF NOT EXISTS only_prefix_2 boolean NOT NULL DEFAULT false",
   );
@@ -82,7 +83,7 @@ await db.begin(async (tx) => {
 if (!(await run("SELECT username FROM gna_users LIMIT 1")).length) {
   if (!secret) throw Error("Bootstrap password missing");
   const salt = crypto.randomUUID();
-  await run("INSERT INTO gna_users VALUES($1,$2,$3,$4,$5)", [
+  await run("INSERT INTO gna_users(username,shop,role,salt,password_hash) VALUES($1,$2,$3,$4,$5)", [
     "admin",
     "Tekinler Yönetim",
     "admin",
@@ -315,10 +316,20 @@ async function actor(req) {
   const t = req.headers.get("cookie")?.match(/(?:^|;\s*)gna=([^;]+)/)?.[1];
   if (!t) return null;
   const a = await run(
-    "SELECT u.username,u.shop,u.role FROM gna_sessions s JOIN gna_users u ON u.username=s.username WHERE s.tokenhash=$1 AND s.expires>now()",
+    "SELECT u.username,u.shop,u.role,u.account_id FROM gna_sessions s JOIN gna_users u ON u.username=s.username WHERE s.tokenhash=$1 AND s.expires>now()",
     [await digest(t)],
   );
-  return a[0] || null;
+  if(!a[0])return null;
+  const u=a[0], preview=req.headers.get("x-gna-preview-shop"), previewAccount=req.headers.get("x-gna-preview-account");
+  if(previewAccount&&u.role==="admin"){
+    if(!/^\d+$/.test(previewAccount))throw new UserError("Geçersiz ana cari");
+    const [account]=await run("SELECT id,name FROM gna_main_accounts WHERE id=$1 AND active",[previewAccount]);
+    if(!account)throw new UserError("Ana cari bulunamadı");
+    u.shop=account.name;u.role="dealer";u.account_id=account.id;u.preview=true;
+  }
+  if(preview&&u.role==="admin"){u.shop=decodeURIComponent(preview);u.role="dealer";u.account_id=null;u.preview=true;}
+  u.shops=u.account_id ? (await run("SELECT d.shop FROM gna_dealer_accounts d JOIN gna_main_accounts a ON a.id=d.account_id WHERE a.active AND d.account_id=$1",[u.account_id])).map(x=>x.shop) : [u.shop];
+  return u;
 }
 Bun.serve({
   port: Number(Bun.env.PORT || 3000),
@@ -384,14 +395,14 @@ Bun.serve({
       }
       if (path === "/api/directory" && req.method === "GET") {
         const entries = await run(
-          `SELECT s.shop,coalesce(p.display_name,s.shop) display_name,coalesce(p.active,true) active,d.account_id FROM (SELECT DISTINCT shop FROM gna_items UNION SELECT shop FROM gna_dealer_accounts UNION SELECT shop FROM gna_dealer_profiles) s LEFT JOIN gna_dealer_profiles p ON p.shop=s.shop LEFT JOIN gna_dealer_accounts d ON d.shop=s.shop ${u.role === "admin" ? "" : "WHERE s.shop=$1"} ORDER BY s.shop`,
-          u.role === "admin" ? [] : [u.shop],
+          `SELECT s.shop,coalesce(p.display_name,s.shop) display_name,coalesce(p.active,true) active,d.account_id FROM (SELECT DISTINCT shop FROM gna_items UNION SELECT shop FROM gna_dealer_accounts UNION SELECT shop FROM gna_dealer_profiles) s LEFT JOIN gna_dealer_profiles p ON p.shop=s.shop LEFT JOIN gna_dealer_accounts d ON d.shop=s.shop ${u.role === "admin" ? "" : "WHERE s.shop IN (SELECT jsonb_array_elements_text($1::jsonb))"} ORDER BY s.shop`,
+          u.role === "admin" ? [] : [u.shops],
         );
         const groups = await run(
           u.role === "admin"
             ? "SELECT id,name,active FROM gna_main_accounts ORDER BY name"
-            : "SELECT a.id,a.name,a.active FROM gna_main_accounts a JOIN gna_dealer_accounts d ON d.account_id=a.id WHERE d.shop=$1",
-          u.role === "admin" ? [] : [u.shop],
+            : "SELECT DISTINCT a.id,a.name,a.active FROM gna_main_accounts a JOIN gna_dealer_accounts d ON d.account_id=a.id WHERE d.shop IN (SELECT jsonb_array_elements_text($1::jsonb))",
+          u.role === "admin" ? [] : [u.shops],
         );
         return out({ dealers: entries, groups });
       }
@@ -399,7 +410,7 @@ Bun.serve({
         const params = new URL(req.url).searchParams,
           shop = params.get("shop") || u.shop,
           month = params.get("month") || "";
-        if (u.role !== "admin" && shop !== u.shop)
+        if (u.role !== "admin" && !u.shops.includes(shop))
           return bad("Başka bayinin kârlılığı görüntülenemez", 403);
         if (month && !/^\d{4}-(0[1-9]|1[0-2])$/.test(month))
           return bad("Ay biçimi YYYY-AA olmalı");
@@ -457,17 +468,17 @@ Bun.serve({
           await run(
             u.role === "admin"
               ? "SELECT shop,count(*)::int AS count FROM gna_items GROUP BY shop ORDER BY shop"
-              : "SELECT shop,count(*)::int AS count FROM gna_items WHERE shop=$1 GROUP BY shop ORDER BY shop",
-            u.role === "admin" ? [] : [u.shop],
+              : "SELECT shop,count(*)::int AS count FROM gna_items WHERE shop IN (SELECT jsonb_array_elements_text($1::jsonb)) GROUP BY shop ORDER BY shop",
+            u.role === "admin" ? [] : [u.shops],
           ),
         );
-      if (path === "/api/items")
+      if (path === "/api/items" && req.method === "GET")
         return out(
           await run(
             u.role === "admin"
               ? "SELECT * FROM gna_items ORDER BY id DESC"
-              : "SELECT * FROM gna_items WHERE shop=$1 ORDER BY id DESC",
-            u.role === "admin" ? [] : [u.shop],
+              : "SELECT * FROM gna_items WHERE shop IN (SELECT jsonb_array_elements_text($1::jsonb)) ORDER BY id DESC",
+            u.role === "admin" ? [] : [u.shops],
           ),
         );
       if (path === "/api/aliases" && req.method === "GET")
@@ -475,8 +486,8 @@ Bun.serve({
           await run(
             u.role === "admin"
               ? "SELECT shop,alias FROM gna_shop_aliases ORDER BY shop,alias"
-              : "SELECT shop,alias FROM gna_shop_aliases WHERE shop=$1 ORDER BY alias",
-            u.role === "admin" ? [] : [u.shop],
+              : "SELECT shop,alias FROM gna_shop_aliases WHERE shop IN (SELECT jsonb_array_elements_text($1::jsonb)) ORDER BY alias",
+            u.role === "admin" ? [] : [u.shops],
           ),
         );
       if (u.role !== "admin") return bad("Yönetici yetkisi gerekli", 403);
@@ -700,6 +711,39 @@ Bun.serve({
             `SELECT products.product,p.purchase_price,p.cash_sale_price,p.tariff_profit,p.updated_at,(SELECT min(price) FROM gna_items i WHERE i.product=products.product) stock_min,(SELECT max(price) FROM gna_items i WHERE i.product=products.product) stock_max FROM (SELECT DISTINCT product FROM gna_items WHERE product IS NOT NULL AND product<>'' UNION SELECT product FROM gna_product_prices) products LEFT JOIN gna_product_prices p ON p.product=products.product ORDER BY products.product`,
           ),
         );
+      if (path === "/api/prices/bulk" && req.method === "PUT") {
+        const b=await req.json(), rows=b.rows;
+        if(!Array.isArray(rows)||!rows.length||rows.length>2000)return bad("1–2000 fiyat satırı gerekli");
+        const names=new Set();
+        for(const row of rows){
+          if(!row||typeof row.product!=="string"||!row.product.trim()||row.product.length>300||names.has(row.product.trim()))return bad("Ürünler geçerli ve tekil olmalı");
+          names.add(row.product.trim());
+          for(const key of ["purchase_price","cash_sale_price","tariff_profit"])
+            if(row[key]!==null&&(typeof row[key]!=="number"||!Number.isFinite(row[key])||Math.abs(row[key])>1e9||(key!=="tariff_profit"&&row[key]<0)))return bad("Fiyatlar sayısal olmalı; eksik fiyat için boş bırakın");
+        }
+        await db.begin(async tx=>{
+          await tx.unsafe("SELECT pg_advisory_xact_lock(719263003)");
+          for(const row of rows)await tx.unsafe("INSERT INTO gna_product_prices(product,purchase_price,cash_sale_price,tariff_profit) VALUES($1,$2,$3,$4) ON CONFLICT(product) DO UPDATE SET purchase_price=EXCLUDED.purchase_price,cash_sale_price=EXCLUDED.cash_sale_price,tariff_profit=EXCLUDED.tariff_profit,updated_at=now()",[row.product.trim(),row.purchase_price,row.cash_sale_price,row.tariff_profit]);
+          await audit(tx,u,"prices.bulk",{products:[...names],count:rows.length});
+        });return out({ok:true,saved:rows.length});
+      }
+      const itemAction=path.match(/^\/api\/items\/(\d+)$/);
+      if(itemAction&&["PATCH","DELETE"].includes(req.method)){
+        const b=req.method==="PATCH"?await req.json():null;
+        const result=await db.begin(async tx=>{
+          await uploadLock(tx);
+          const [old]=await tx.unsafe("SELECT * FROM gna_items WHERE id=$1 FOR UPDATE",[itemAction[1]]);
+          if(!old)throw new UserError("Ürün bulunamadı",404);
+          if(!b){await tx.unsafe("DELETE FROM gna_items WHERE id=$1",[old.id]);await audit(tx,u,"item.delete",{old});return {ok:true};}
+          const serial=clean(b.serial,100),shop=clean(b.shop),product=clean(b.product,300),price=Number(b.price);
+          if(!serial||!shop||!product||!Number.isFinite(price)||price<0||price>1e9||!["","Peşin Satış","Tarifeye Ek"].includes(b.campaign))throw new UserError("Seri, bayi, ürün, fiyat ve satış durumu geçerli olmalı");
+          if((await tx.unsafe("SELECT 1 FROM gna_items WHERE serial=$1 AND shop=$2 AND id<>$3",[serial,shop,old.id])).length)throw new UserError("Bu seri bayide zaten var",409);
+          const shipped=importDate(b.shipped),sold=importDate(b.sold);
+          if((b.shipped&&!shipped)||(b.sold&&!sold))throw new UserError("Geçerli tarih seçin");
+          await tx.unsafe("UPDATE gna_items SET serial=$1,shop=$2,product=$3,price=$4,shipped=$5,sold=$6,campaign=$7,paid_on=$8,vf_paid_on=$9 WHERE id=$10",[serial,shop,product,price,shipped,sold,b.campaign||null,b.paid?old.paid_on||"Ödendi":null,b.vf_paid?old.vf_paid_on||"Ödendi":null,old.id]);
+          await audit(tx,u,"item.edit",{id:old.id,old});return {ok:true};
+        });return out(result);
+      }
       if (path === "/api/prices" && req.method === "PUT") {
         const b = await req.json();
         if (
@@ -946,10 +990,13 @@ Bun.serve({
         );
       }
       if (path === "/api/users" && req.method === "GET") {
-        const users = await run("SELECT username,shop,role FROM gna_users ORDER BY username");
+        const users = await run("SELECT username,shop,role,account_id FROM gna_users ORDER BY username");
         const shops = await run("SELECT DISTINCT shop FROM (SELECT shop FROM gna_items UNION SELECT shop FROM gna_dealer_profiles UNION SELECT shop FROM gna_dealer_accounts) s WHERE NOT EXISTS(SELECT 1 FROM gna_users u WHERE u.shop=s.shop) ORDER BY shop");
+        for(const user of users)if(!user.account_id)delete user.account_id;
         const names=new Set(users.map(x=>x.username));
-        return out([...users,...shops.map(x=>{let name=x.shop,n=2;while(names.has(name))name=x.shop+"-"+n++;names.add(name);return {username:name,shop:x.shop,role:"dealer",pending:true};})]);
+        const groups=await run("SELECT id,name FROM gna_main_accounts a WHERE active AND NOT EXISTS(SELECT 1 FROM gna_users u WHERE u.account_id=a.id) ORDER BY name");
+        const drafts=groups.map(a=>{let name=a.name,n=2;while(names.has(name))name=a.name+"-"+n++;names.add(name);return {username:name,shop:a.name,account_id:a.id,role:"dealer",pending:true};});
+        return out([...users,...drafts,...shops.map(x=>{let name=x.shop,n=2;while(names.has(name))name=x.shop+"-"+n++;names.add(name);return {username:name,shop:x.shop,role:"dealer",pending:true};})]);
       }
       if (path === "/api/users" && req.method === "PATCH") {
         const b=await req.json(), old=clean(b.original_username), name=clean(b.username), shop=clean(b.shop), role=b.role;
@@ -961,12 +1008,15 @@ Bun.serve({
           if (!target) throw new UserError("Kullanıcı bulunamadı",404);
           if (target.role==="admin" && role!=="admin" && Number((await tx.unsafe("SELECT count(*) n FROM gna_users WHERE role='admin'"))[0].n)<=1) throw new UserError("Son yöneticinin yetkisi kaldırılamaz",409);
           if (old!==name && (await tx.unsafe("SELECT 1 FROM gna_users WHERE username=$1",[name])).length) throw new UserError("Kullanıcı adı zaten mevcut",409);
+          const account=Object.hasOwn(b,"account_id")?b.account_id:target.account_id;
+          if(account!=null&&account!==""&&(!/^\d+$/.test(String(account))||!(await tx.unsafe("SELECT 1 FROM gna_main_accounts WHERE id=$1 AND active",[String(account)])).length))throw new UserError("Ana cari bulunamadı veya kapalı");
+          const accountId=account==null||account===""?null:String(account);
           const salt=b.password?crypto.randomUUID():target.salt;
           const hash=b.password?await digest(salt+b.password):target.password_hash;
-          await tx.unsafe("UPDATE gna_users SET username=$1,shop=$2,role=$3,salt=$4,password_hash=$5 WHERE username=$6",[name,shop,role,salt,hash,old]);
-          const changedIdentity=old!==name||shop!==target.shop||role!==target.role||!!b.password;
+          await tx.unsafe("UPDATE gna_users SET username=$1,shop=$2,role=$3,salt=$4,password_hash=$5,account_id=$7 WHERE username=$6",[name,shop,role,salt,hash,old,accountId]);
+          const changedIdentity=old!==name||shop!==target.shop||role!==target.role||String(accountId??"")!==String(target.account_id??"")||!!b.password;
           if(changedIdentity)await tx.unsafe("DELETE FROM gna_sessions WHERE username=$1",[old]);
-          await audit(tx,u,"user.edit",{original_username:old,username:name,shop,role,password_changed:!!b.password});
+          await audit(tx,u,"user.edit",{original_username:old,username:name,shop,role,account_id:accountId,password_changed:!!b.password});
           return {ok:true,relogin:changedIdentity&&u.username===old};
         });return out(result);
       }
@@ -979,13 +1029,16 @@ Bun.serve({
         const role = b.role || "dealer";
         if (!["dealer", "admin"].includes(role)) return bad("Geçersiz kullanıcı rolü");
         if ((await run("SELECT 1 FROM gna_users WHERE username=$1", [String(b.username).trim()])).length) return bad("Bu kullanıcı adı zaten mevcut", 409);
+        const account=b.account_id==null||b.account_id===""?null:String(b.account_id);
+        if(account&&(!/^\d+$/.test(account)||!(await run("SELECT 1 FROM gna_main_accounts WHERE id=$1 AND active",[account])).length))return bad("Ana cari bulunamadı veya kapalı");
         const salt = crypto.randomUUID();
-        await run("INSERT INTO gna_users VALUES($1,$2,$3,$4,$5)", [
+        await run("INSERT INTO gna_users(username,shop,role,salt,password_hash,account_id) VALUES($1,$2,$3,$4,$5,$6)", [
           String(b.username).trim(),
           String(b.shop).trim(),
           role,
           salt,
           await digest(salt + String(b.password)),
+          account,
         ]);
         return out({ ok: true });
       }
@@ -1015,6 +1068,7 @@ Bun.serve({
           };
           for (const x of b.rows) {
             sourceRow = Number.isInteger(x.source_row) ? x.source_row : null;
+            if(b.kind==="activation"&&x.ignore===true){skipped++;continue;}
             const serial = String(x.serial || "")
               .trim()
               .slice(0, 100);

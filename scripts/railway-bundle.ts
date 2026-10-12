@@ -62,7 +62,10 @@ const result = await Bun.build({
 });
 if (!result.success)
   throw Error("Server bundle failed: " + result.logs.map(String).join("; "));
-const code = await result.outputs[0].text(),
+const uncompressed = await result.outputs[0].text();
+await Bun.write(new URL("../artifacts/server-uncompressed.ts", import.meta.url), uncompressed);
+const zipped = Buffer.from(Bun.gzipSync(new TextEncoder().encode(uncompressed))).toString("base64");
+const code = `import {gunzipSync} from "node:zlib";await import("data:text/javascript;base64,"+gunzipSync(Buffer.from(${JSON.stringify(zipped)},"base64")).toString("base64"));`,
   command = "./run.sh " + Buffer.from(code).toString("base64");
 if (command.length > 120000)
   throw Error("Railway startup command exceeds the safe argument size");

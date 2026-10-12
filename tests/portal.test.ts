@@ -837,3 +837,49 @@ test("all unmatched serials are returned for complete Excel error reports",async
   const r=await api("import","POST",{kind:"payment",rows:Array.from({length:125},(_,i)=>({serial:"missing-"+i,source_row:i+2}))});
   expect(r.status).toBe(200);expect(r.data.issues.length).toBe(125);expect(r.data.issues[124]).toEqual({serial:"missing-124",reason:"Seri bulunamadı",row:126});
 });
+
+test("bulk prices validate the whole list before atomically saving and reject dealers",async()=>{
+ const rows=[{product:"Bulk A",purchase_price:100,cash_sale_price:150,tariff_profit:20},{product:"Bulk B",purchase_price:50,cash_sale_price:90,tariff_profit:10}];
+ expect((await api("prices/bulk","PUT",{rows},dealerCookie)).status).toBe(403);
+ expect((await api("prices/bulk","PUT",{rows:[rows[0],{...rows[1],purchase_price:-1}]})).status).toBe(400);
+ expect((await api("prices")).data.some(x=>x.product==="Bulk A")).toBe(false);
+ expect((await api("prices/bulk","PUT",{rows})).data.saved).toBe(2);
+ expect(Number((await api("prices")).data.find(x=>x.product==="Bulk B").tariff_profit)).toBe(10);
+});
+test("main account users see only their linked shops, with membership changes enforced immediately",async()=>{
+ const stock=await api("import","POST",{kind:"stock",rows:["Scope A","Scope B","Scope Outside"].map((shop,i)=>({serial:"2SCOPE-"+i,shop,product:"Scope Phone",price:10}))});
+ const parent=(await api("accounts","POST",{name:"Scope Parent"})).data.id;
+ for(const shop of ["Scope A","Scope B"])expect((await api("dealer-accounts","PUT",{shop,account_id:parent})).status).toBe(200);
+ expect((await api("users","POST",{username:"scope-parent",shop:"Scope Parent",account_id:parent,role:"dealer",password:"test-password-123"})).status).toBe(200);
+ const logged=await api("login","POST",{username:"scope-parent",password:"test-password-123"},"");
+ const cookie=logged.headers.get("set-cookie").split(";")[0];
+ expect((await api("items","GET",undefined,cookie)).data.map(x=>x.shop).sort()).toEqual(["Scope A","Scope B"]);
+ expect((await api("directory","GET",undefined,cookie)).data.groups.length).toBe(1);
+ expect((await api("profitability?shop=Scope Outside","GET",undefined,cookie)).status).toBe(403);
+ expect((await api("users","GET",undefined,cookie)).status).toBe(403);
+ await api("dealer-accounts","PUT",{shop:"Scope B",account_id:null});
+ expect((await api("items","GET",undefined,cookie)).data.map(x=>x.shop)).toEqual(["Scope A"]);
+ await api("accounts/"+parent,"PATCH",{name:"Scope Parent",active:false});
+ expect((await api("items","GET",undefined,cookie)).data).toEqual([]);
+ await db.unsafe("DELETE FROM gna_sessions WHERE username='scope-parent'");await db.unsafe("DELETE FROM gna_users WHERE username='scope-parent'");await db.unsafe("DELETE FROM gna_dealer_accounts WHERE account_id=$1",[parent]);await db.unsafe("DELETE FROM gna_main_accounts WHERE id=$1",[parent]);
+ expect((await api("uploads/"+stock.data.batch_id+"/undo","POST")).status).toBe(200);
+});
+test("admin preview is scoped to a dealer and cannot write, while dealer headers cannot widen access",async()=>{
+ const request=async(path,method="GET",cookie=adminCookie,header={"x-gna-preview-shop":encodeURIComponent("Girne Çarşı")},body=undefined)=>{const r=await fetch(base+"/api/"+path,{method,headers:{Cookie:cookie,"content-type":"application/json",...header},body:body===undefined?undefined:JSON.stringify(body)});return {status:r.status,data:await r.json()};};
+ expect((await request("me")).data.role).toBe("dealer");
+ expect((await request("items")).data.every(x=>x.shop==="Girne Çarşı")).toBe(true);
+ expect((await request("prices/bulk","PUT",adminCookie,undefined,{rows:[]})).status).toBe(403);
+ expect((await request("items","GET",dealerCookie,{"x-gna-preview-shop":encodeURIComponent("Yenikent")})).data.every(x=>x.shop==="Girne Çarşı")).toBe(true);
+});
+test("admins edit and delete product rows; dealer changes and duplicate serials are rejected",async()=>{
+ const stock=await api("import","POST",{kind:"stock",rows:[{serial:"2MANUAL",shop:"Girne Çarşı",product:"Manual Phone",price:10,shipped:"2026-01-01"}]});
+ const item=(await api("items")).data.find(x=>x.serial==="2MANUAL");
+ const body={...item,price:25,product:"Edited Phone",campaign:"Peşin Satış",sold:"2026-10-12",paid:true,vf_paid:false};
+ expect((await api("items/"+item.id,"PATCH",body,dealerCookie)).status).toBe(403);
+ expect((await api("items/"+item.id,"PATCH",body)).status).toBe(200);
+ expect((await api("uploads/"+stock.data.batch_id+"/undo","POST")).status).toBe(409);
+ expect((await api("items")).data.find(x=>x.id===item.id).product).toBe("Edited Phone");
+ expect((await api("items/"+item.id,"DELETE",undefined,dealerCookie)).status).toBe(403);
+ expect((await api("items/"+item.id,"DELETE")).status).toBe(200);
+ expect((await api("items")).data.some(x=>x.id===item.id)).toBe(false);
+});

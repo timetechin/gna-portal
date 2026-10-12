@@ -247,6 +247,9 @@
     }
 
     body{font:14px Arial,Helvetica,sans-serif;background:#f4f6fa;color:#152033}aside{width:225px;padding:18px 13px;background:#650000;overflow:auto}aside h2{font-size:19px;line-height:1.3}aside p{font-size:12px;color:#f1dada}nav button{font-size:14px;padding:11px 12px;border-radius:10px;margin:3px 0}nav button:hover,nav button.active{background:#ffffff26}main{padding:18px 20px;margin-left:225px}h1{font-size:21px;margin:0}h2{font-size:19px}h3{font-size:17px;margin:0 0 12px;color:#650000}.topbar{display:flex;align-items:center;justify-content:space-between;background:white;padding:14px 18px;margin:-18px -20px 18px;border-bottom:1px solid #e2e7ef}.card{border:1px solid #7f8593;border-radius:14px;padding:14px}button{font:inherit;padding:8px 12px;background:#f6f6f6;border:1px solid #e2e2e2;border-radius:9px;cursor:pointer;box-shadow:0 1px 2px #0000000a}button:hover{background:#eee}.btn{background:#650000;border:1px solid #650000;border-radius:10px;padding:9px 13px}.btn:hover{background:#850000}input,select{font:inherit;background:#f5f6f7;border-radius:9px;padding:9px;border-color:#e1e3e7}td,th{border:1px solid #e2e8f2;padding:9px}th{background:#e8edf5;color:#650000;font-size:12px}tbody tr:nth-child(even){background:#f7f9fc}tbody tr:hover{background:#fff3f3}.column-filter{position:relative}.column-menu{position:absolute;top:30px;left:0;z-index:30;width:255px;border-radius:12px;box-shadow:0 5px 20px #0002;padding:9px;color:#152033;font-size:12px}.column-menu input:not([type=checkbox]){width:100%;margin:4px 0}.column-filter summary{list-style:none;display:flex;justify-content:space-between;gap:12px;align-items:center}.column-filter summary span{border:1px solid #9f7373;background:white;padding:2px 5px;border-radius:3px}.column-options{border-top:1px solid #adb3bd;border-bottom:1px solid #adb3bd;margin:6px 0}.column-menu .btn{width:100%;order:9}.filter-choice{margin:4px 0}.totals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.metric{text-align:left;color:#152033;display:flex;flex-direction:column;gap:8px}.metric strong{font-size:22px;color:#650000}.metric small{color:#7b8695}.date-controls{display:flex;flex-wrap:wrap;align-items:center;padding:8px;background:#f7f9fc;border:1px solid #dbe1ea;border-radius:10px}.muted{color:#7b8695}#activationCriteria label{display:block;margin:5px 0}#activationCriteria select{max-width:100%}@media(max-width:720px){aside{width:auto;position:static}main{margin:0;padding:12px}.topbar{margin:-12px -12px 12px}.totals{grid-template-columns:1fr}.column-menu{position:fixed;top:20%;left:15%;width:70%;max-height:65vh;overflow:auto}}
+
+    .topbar{position:sticky;top:0;z-index:40}tbody tr:has(input[type=checkbox]:checked){background:#fff0f0}th:nth-last-child(-n+2) .column-menu{left:auto!important;right:0}
+    .uploadgrid{grid-template-columns:repeat(4,minmax(0,1fr));align-items:stretch;gap:12px}.uploadbox{padding:14px;min-width:0;display:flex;flex-direction:column;gap:8px}.uploadbox h3{font-size:16px}.uploadbox p{font-size:12px;line-height:1.5;margin:0}.uploadbox input[type=file]{width:100%;padding:7px;margin:6px 0;font-size:12px}.uploadbox input[type=checkbox]{display:inline-block;margin:0 5px 0 0}.uploadbox label{font-size:12px}.uploadbox select{width:100%;margin:4px 0;font-size:12px}.uploadbox .btn{padding:9px 6px;font-size:13px}body.menu-collapsed aside{display:none}body.menu-collapsed main{margin-left:0}nav button{padding:10px 12px;font-size:14px}h1{font-size:19px}input,select{font-size:13px;padding:7px}button{font-size:13px;padding:7px 10px}td{font-size:13px;padding:7px;line-height:1.3}th{font-size:11px;padding:7px}#itemtable td:nth-child(4){min-width:140px}#itemtable td:nth-child(5){white-space:nowrap}.column-menu{position:absolute!important;left:0!important;top:100%!important;width:215px;min-width:215px;font-size:11px;padding:7px;max-height:360px;overflow:auto}.column-menu button{font-size:11px;padding:5px;margin:2px}.column-options{max-height:165px}.column-menu input:not([type=checkbox]){font-size:11px;padding:7px}.column-filter summary span{font-size:10px;padding:2px 4px}.scroll{overflow:visible}#itemtable{overflow:visible}table{table-layout:auto}.age-badge{display:inline-block;background:#ffe4e4;color:#aa0000;border:1px solid #d60000;border-radius:5px;font-size:11px;font-weight:bold;padding:4px;white-space:nowrap}.row-actions{white-space:nowrap}.row-actions button{font-size:12px;padding:5px 8px}.row-actions button:last-child{color:#a00000}#previewControls,#previewNotice{border:1px solid #d7dce4;border-radius:9px;padding:7px 12px;margin:8px 0;background:#fff}#previewNotice{background:#fff7df}dialog{border:1px solid #8c929c;border-radius:14px;padding:20px;max-width:700px;width:90%}dialog::backdrop{background:#0005}.editor-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.editor-grid input:not([type=checkbox]),.editor-grid select{display:block;width:100%;margin:4px 0}.date-controls{font-size:12px}.date-controls input,.date-controls select{font-size:12px}.topbar{flex-wrap:wrap;gap:8px}@media(max-width:1200px){.uploadgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:720px){.uploadgrid,.editor-grid{grid-template-columns:1fr}.column-menu{width:190px;min-width:190px}.topbar h1{font-size:17px}}
   </style>
   <div id="login" class="card">
     <h1>GNA Portalı</h1>
@@ -259,7 +262,7 @@
     <p id="loginmsg"></p>
   </div>
   <div id="app" hidden>
-    <aside>
+    <aside id="sidebar">
       <h2>GNA Portalı</h2>
       <small>TEKİNLER İLETİŞİM</small>
       <nav>
@@ -288,13 +291,13 @@
         >
           Fiyatlama Listesi</button
         ><button class="admin" onclick="tab('upload')">Excel Yükle</button
-        ><button class="admin" onclick="tab('users'); refresh()">Kullanıcı Yönetimi</button
+        ><button class="admin" onclick="tab('users'); showUserManagement()">Kullanıcı Yönetimi</button
         ><button onclick="logout()">Çıkış</button>
       </nav>
     </aside>
     <main>
-      <div class="topbar"><h1 id="heading">Ana Panel</h1><button onclick="restoreAllTableColumns()">Sütunları göster</button><button onclick="exportCurrentSection()">▤ Excel İndir</button></div>
-      <p id="identity" class="muted"></p>
+      <div class="topbar"><button id="menuToggle" onclick="toggleSidebar()" aria-expanded="true">☰ Menü</button><h1 id="heading">Ana Panel</h1><button onclick="restoreAllTableColumns()">Sütunları göster</button><button onclick="exportCurrentSection()">▤ Excel İndir</button></div>
+      <p id="identity" class="muted"></p><div id="previewControls" class="admin"><label>Bayi tarafını görüntüle <select id="previewSelect"></select></label><button onclick="startDealerPreview()">Görüntüle</button></div><div id="previewNotice" hidden><b id="previewTitle"></b><button onclick="endDealerPreview()">Yönetici görünümüne dön</button></div>
       <section id="home" class="on">
         <div class="card" id="summary"></div>
       </section>
@@ -305,7 +308,7 @@
           <div id="productlist" hidden>
             <button class="btn" onclick="backFromProducts()">← Geri</button>
             <h2 id="dealerTitle"></h2>
-            <div id="dealerDashboard" class="totals"></div><div class="date-controls"><label>Tarih türü <select id="dateField" onchange="draw()"><option value="shipped">Alım Tarihi</option><option value="sold">Aktivasyon Tarihi</option></select></label><label>Başlangıç <input id="dateFrom" type="date" onchange="draw()"></label><label>Bitiş <input id="dateTo" type="date" onchange="draw()"></label><label>Ay <input id="dateMonth" type="month" onchange="draw()"></label><button onclick="clearDateFilters()">Tarihleri temizle</button></div><button id="showColumns" onclick="restoreColumns()">Gizli sütunları göster</button><div id="productViews" class="view-buttons"></div>
+            <div id="dealerDashboard" class="totals"></div><div class="date-controls"><label>Tarih türü <select id="dateField" onchange="draw()"><option value="shipped">Alım Tarihi</option><option value="sold">Aktivasyon Tarihi</option></select></label><label>Başlangıç <input id="dateFrom" type="date" onchange="draw()"></label><label>Bitiş <input id="dateTo" type="date" onchange="draw()"></label><label>Ay <input id="dateMonth" type="month" onchange="draw()"></label><button onclick="clearDateFilters()">Tarihleri temizle</button></div><button class="btn" onclick="exportDealerProducts()">Excel’e Aktar</button><span id="selectionCount"></span><button id="showColumns" onclick="restoreColumns()">Gizli sütunları göster</button><div id="productViews" class="view-buttons"></div>
             <div id="dealerAliases" class="admin"></div>
             <button onclick="resetColumnFilters()">
               Sütun filtrelerini temizle
@@ -316,7 +319,7 @@
               oninput="draw()"
             /><select id="shopfilter" hidden onchange="draw()">
               <option value="">Tüm Bayiler</option></select
-            ><select id="productfilter" onchange="draw()">
+            ><select id="productfilter" hidden onchange="draw()">
               <option value="">Tüm Ürünler</option></select
             ><select id="vodfilter" onchange="draw()">
               <option value="">Tüm Vodafone Durumları</option>
@@ -417,10 +420,9 @@
             <div class="uploadbox">
               <h3>3. Vodafone Aktivasyonları</h3>
               <p>
-                E: Cihaz Kampanya Adı · H: Seri / IMEI. AYLIK TAAHHUTLU
-                KAMPANYALAR → Tarifeye Ek; GNA BAYI CIHAZ KAMPANYASI → Peşin
-                Satış.
+                Kampanya, seri ve tarih sütunlarını seçebilirsiniz. Satış alt kriterlerini aşağıdan belirleyin.
               </p>
+              <label>AYLIK TAAHHUTLU KAMPANYALAR <select id="defaultTariff" onchange="renderCampaignCriteriaIfReady()"><option value="Tarifeye Ek">Tarifeye Ek</option><option value="Peşin Satış">Peşin Satış</option><option value="">İşleme Alma</option></select></label><label>GNA BAYI CIHAZ KAMPANYASI <select id="defaultCash" onchange="renderCampaignCriteriaIfReady()"><option value="Peşin Satış">Peşin Satış</option><option value="Tarifeye Ek">Tarifeye Ek</option><option value="">İşleme Alma</option></select></label>
               <input
                 type="file"
                 id="activationfile"
@@ -429,9 +431,8 @@
               /><button class="btn" onclick="uploadFile('activation')">
                 Vodafone Excel Yükle
               </button>
-              <div id="activationCriteria"><p>Dosyayı seçince kampanya alt kriterlerini belirleyebilirsiniz.</p></div><p id="activationmsg"></p>
+              <details id="activationCriteria"><summary>Dosya Sütunları / Alt Kriterler</summary><p>Dosyayı seçince kampanya alt kriterlerini belirleyebilirsiniz.</p></details><p id="activationmsg"></p>
             </div>
-          </div>
           <div class="uploadbox">
             <h3>4. VF Tarafından Ödenenler</h3>
             <p>
@@ -446,7 +447,7 @@
             </button>
             <p id="vf_paymentmsg" role="status"></p>
           </div>
-          <h3>Yüklenen Dosyalar</h3>
+          </div><h3>Yüklenen Dosyalar</h3>
           <div class="scroll" id="importhistory"></div>
           <p class="muted">
             Gerçek Excel biçimlerini küçük örneklerle doğrulayın. Eşleşmeyen
@@ -465,7 +466,7 @@
             type="password"
             placeholder="Şifre (en az 12 karakter)"
           /><button type="button" onclick="newpass.type=newpass.type==='password'?'text':'password';this.textContent=newpass.type==='text'?'Şifreyi gizle':'Şifreyi göster'">Şifreyi göster</button>
-          <label>Yetki <select id="newrole"><option value="dealer">Bayi</option><option value="admin">Yönetici (tüm bayilere erişir)</option></select></label>
+          <label>Erişim bağlantısı <select id="newaccount" onchange="if(this.value)shop.value=this.selectedOptions[0].textContent"><option value="">Tek bayi</option></select></label><label>Yetki <select id="newrole"><option value="dealer">Bayi</option><option value="admin">Yönetici (tüm bayilere erişir)</option></select></label>
           <button class="btn" onclick="createUser()">Kaydet</button>
           <p class="muted">Şifreyi kaydetmeden önce gösterebilirsiniz. Kaydedilen şifreler güvenlik için okunabilir biçimde tutulmaz.</p>
           <p id="usermsg"></p>
@@ -474,6 +475,7 @@
       </section>
     </main>
   </div>
+  <dialog id="itemEditor"><h3>Ürün Düzenle</h3><input id="editItemId" type="hidden"><div class="editor-grid"><label>Bayi<input id="editItemShop" list="userShops"></label><label>Seri<input id="editItemSerial"></label><label>Ürün<input id="editItemProduct"></label><label>Alış fiyatı<input id="editItemPrice" type="number" min="0" step="0.01"></label><label>Çıkış / alım tarihi<input id="editItemShipped" type="date"></label><label>Aktivasyon tarihi<input id="editItemSold" type="date"></label><label>Satış<select id="editItemCampaign"><option value="">Stokta</option><option>Peşin Satış</option><option>Tarifeye Ek</option></select></label><label><input id="editItemPaid" type="checkbox">VDM’ye ödendi</label><label><input id="editItemVF" type="checkbox">VF tarafından ödendi</label></div><p id="itemEditMessage"></p><button class="btn" onclick="saveProductEdit()">Kaydet</button><button onclick="itemEditor.close()">Vazgeç</button></dialog>
   <script>
     let me,
       items = [],
@@ -498,10 +500,11 @@
         style: "currency",
         currency: "TRY",
       });
+    let previewShop="", previewAccount="";
     async function api(p, m = "GET", b) {
       let r = await fetch("/api/" + p, {
         method: m,
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...(previewShop?{"x-gna-preview-shop":encodeURIComponent(previewShop)}:{}), ...(previewAccount?{"x-gna-preview-account":previewAccount}:{}) },
         body: b ? JSON.stringify(b) : undefined,
       });
       let j = await r.json();
@@ -520,6 +523,7 @@
       }
     }
     async function logout() {
+      if(previewShop||previewAccount){await endDealerPreview();return;}
       await api("logout", "POST");
       location.reload();
     }
@@ -567,6 +571,9 @@
           .querySelectorAll(".admin")
           .forEach((n) => (n.hidden = me.role !== "admin"));
         await refresh();
+        previewNotice.hidden=!me.preview;
+        previewTitle.textContent=me.preview?"Bayi Görünümü: "+me.shop:"";
+        tab("home");
       } catch (x) {
         login.hidden = false;
         app.hidden = true;
@@ -595,8 +602,10 @@
         });
       if (me.role === "admin") {
         let u = await api("users");
+        previewSelect.innerHTML=directory.groups.filter(a=>a.active).map(a=>`<option value="account:${e(a.id)}">Ana Cari: ${e(a.name)}</option>`).join("")+directory.dealers.map(d=>`<option value="shop:${e(d.shop)}">Bayi: ${e(d.display_name)}</option>`).join("");
+        newaccount.innerHTML='<option value="">Tek bayi</option>'+accounts.filter(a=>a.active).map(a=>`<option value="${e(a.id)}">${e(a.name)}</option>`).join("");
         userShops.innerHTML=directory.dealers.map(d=>`<option value="${e(d.shop)}">${e(d.display_name)}</option>`).join("");
-        userlist.innerHTML = `<p>Cari kayıtları otomatik listelenir. Şifre girip kaydettiğinizde erişim açılır.</p><table><thead><tr><th>Kullanıcı</th><th>Bayi</th><th>Rol</th><th>İşlem</th></tr></thead><tbody>${u.map(x=>`<tr><td>${e(x.username||"Henüz erişim açılmadı")}</td><td>${e(shopName(x.shop))}</td><td>${x.pending?"Şifre bekleniyor":x.role==="admin"?"Yönetici":"Bayi"}</td><td><button data-user="${e(x.pending?"":x.username)}" data-suggest="${e(x.username)}" data-shop="${e(x.shop)}" data-role="${e(x.role)}" onclick="editUser(this)">${x.pending?"Erişim Aç":"Düzenle"}</button></td></tr>`).join("")}</tbody></table>`;
+        userlist.innerHTML = `<p>Cari kayıtları otomatik listelenir. Şifre girip kaydettiğinizde erişim açılır.</p><table><thead><tr><th>Kullanıcı</th><th>Bayi</th><th>Rol</th><th>İşlem</th></tr></thead><tbody>${u.map(x=>`<tr><td>${e(x.username||"Henüz erişim açılmadı")}</td><td>${e(x.account_id?accounts.find(a=>String(a.id)===String(x.account_id))?.name||x.shop:shopName(x.shop))}${x.account_id?" · Ana Cari":""}</td><td>${x.pending?"Şifre bekleniyor":x.role==="admin"?"Yönetici":"Bayi"}</td><td><button data-user="${e(x.pending?"":x.username)}" data-suggest="${e(x.username)}" data-shop="${e(x.shop)}" data-role="${e(x.role)}" data-account="${e(x.account_id||"")}" onclick="editUser(this)">${x.pending?"Erişim Aç":"Düzenle"}</button></td></tr>`).join("")}</tbody></table>`;
       }
     }
     function fillShops() {
@@ -1110,9 +1119,10 @@
           .map((x) => [x.shop, x.serial, x.paid_on, x.campaign || "Stokta"]),
       );
     }
+    async function showUserManagement(){userlist.textContent="Yükleniyor…";try{await refresh();}catch(err){usermsg.textContent=err.message;}}
     let editingUsername="";
-    function editUser(button){editingUsername=button.dataset.user;newname.value=button.dataset.suggest||editingUsername;shop.value=button.dataset.shop;newrole.value=button.dataset.role;newpass.value="";newpass.type="password";userFormTitle.textContent=editingUsername?"Kullanıcı Düzenle":"Cari için Erişim Aç";newpass.placeholder=editingUsername?"Yeni şifre (boşsa mevcut korunur)":"Şifre (en az 12 karakter)";usermsg.textContent="";newname.focus();}
-    function cancelUserEdit(){editingUsername="";newname.value="";shop.value="";newpass.value="";newrole.value="dealer";userFormTitle.textContent="Yeni Kullanıcı";newpass.placeholder="Şifre (en az 12 karakter)";}
+    function editUser(button){editingUsername=button.dataset.user;newname.value=button.dataset.suggest||editingUsername;shop.value=button.dataset.shop;newrole.value=button.dataset.role;newaccount.value=button.dataset.account||"";newpass.value="";newpass.type="password";userFormTitle.textContent=editingUsername?"Kullanıcı Düzenle":"Cari için Erişim Aç";newpass.placeholder=editingUsername?"Yeni şifre (boşsa mevcut korunur)":"Şifre (en az 12 karakter)";usermsg.textContent="";newname.focus();}
+    function cancelUserEdit(){editingUsername="";newname.value="";shop.value="";newpass.value="";newrole.value="dealer";newaccount.value="";userFormTitle.textContent="Yeni Kullanıcı";newpass.placeholder="Şifre (en az 12 karakter)";}
     async function createUser() {
       try {
         const result = await api("users", editingUsername ? "PATCH" : "POST", {
@@ -1121,6 +1131,7 @@
           shop: shop.value,
           password: newpass.value,
           role: newrole.value,
+          account_id: newaccount.value||null,
         });
         usermsg.textContent = editingUsername ? "Kullanıcı güncellendi" : "Kullanıcı oluşturuldu";
         if(result.relogin){alert("Hesabınız güncellendi. Yeni bilgilerinizle tekrar giriş yapın.");location.reload();return;}
@@ -1244,6 +1255,7 @@
         let f = document.getElementById(type + "file").files[0];
         if (!f) throw Error("Dosya seçin");
         if (!window.XLSX) throw Error("Excel okuyucu yüklenmedi");
+        if(type==="activation"&&activationFileObject!==f)await previewActivation();
         let wb = XLSX.read(await f.arrayBuffer(), { type: "array" });
         let sh =
           wb.Sheets[wb.SheetNames.includes("Data") ? "Data" : wb.SheetNames[0]];
@@ -1297,6 +1309,7 @@
               ),
               serial: str(activationColumn(o,"serial",["Cihaz IMEI", "IMEI", "SeriNo"],7)),
               campaign: chosenCampaign(c),
+              ignore: chosenCampaign(c)==="",
               sold: dt(
                 activationColumn(
                   o, "date",
@@ -1354,6 +1367,7 @@
           " · Atlandı: " +
           skipped +
           " · Hata: " + issues.length;
+        if(type==="activation")activationCriteria.open=false;
         uploadReports[type] = issues;
         const oldReport=document.getElementById(type+"Report");if(oldReport)oldReport.remove();
         if(issues.length){const button=document.createElement("button");button.id=type+"Report";button.textContent="Hata Raporu İndir";button.onclick=()=>downloadUploadReport(type);msg.after(button);}
@@ -1374,9 +1388,9 @@
     function activationCampaign(value) {
       const key = norm(value);
       return key.includes(norm("AYLIK TAAHHUTLU KAMPANYALAR"))
-        ? "Tarifeye Ek"
+        ? document.getElementById("defaultTariff")?.value??"Tarifeye Ek"
         : key.includes(norm("GNA BAYI CIHAZ KAMPANYASI"))
-          ? "Peşin Satış"
+          ? document.getElementById("defaultCash")?.value??"Peşin Satış"
           : "";
     }
     function itemState(x) {
@@ -1388,6 +1402,7 @@
       return !!x.paid_on && x.campaign === "Tarifeye Ek" && !x.vf_paid_on;
     }
     function vfStatus(x) {
+      if(["Peşin Satış","Tarifeye Ek"].includes(x.campaign))return "Vodafone’dan alacak yok";
       return x.vf_paid_on
         ? "VF’den Ödendi"
         : vfWaiting(x)
@@ -1426,6 +1441,7 @@
             : "Ödenmedi",
       },
       { key: "vf", label: "Vodafone", value: vfStatus },
+      { key: "age", label: "Süre", value: x=>{const days=productAge(x);return days===null?"—":days>=45?"45 gün geçti ("+days+" gün)":days+" gün";} },
     ];
     function renderProductTable(rows) {
       const context = items.filter((x) => contextShops().includes(x.shop) && matchesDate(x));
@@ -1457,6 +1473,7 @@
           )
           .join("") +
         `<button ${selectedDealer ? "" : "disabled"} onclick="openProfitability()">Kârlılık</button>`;
+      visibleProductRows=rows;
       const visibleColumns = productColumns.filter(c=>!hiddenColumns.has(c.key));
       const head = visibleColumns
         .map((c) => {
@@ -1467,7 +1484,8 @@
           return `<th><details class="column-filter" id="filter-${c.key}"><summary>${c.label} <span>${active ? "●" : "▼"}</span></summary><div class="column-menu"><input aria-label="${c.label} filtresinde ara" placeholder="Değer ara" oninput="searchColumnOptions(this)"><div><button data-key="${c.key}" data-direction="1" onclick="setColumnSort(this)">${["sold","shipped"].includes(c.key)?"Eskiden yeniye":"A’dan Z’ye"}</button><button data-key="${c.key}" data-direction="-1" onclick="setColumnSort(this)">${["sold","shipped"].includes(c.key)?"Yeniden eskiye":"Z’den A’ya"}</button></div><button onclick="selectColumnOptions(this,true)">Tümünü seç</button><button onclick="selectColumnOptions(this,false)">Seçimi kaldır</button><div class="column-options">${values.map((v) => `<label class="filter-choice"><input type="checkbox" value="${e(v)}" ${!active || active.includes(v) ? "checked" : ""}><span>${e(v)}</span></label>`).join("")}</div><button class="btn" data-key="${c.key}" onclick="applyColumnFilter(this)">Tamam</button><button data-key="${c.key}" onclick="hideColumn(this.dataset.key)">Bu sütunu gizle</button></div></details></th>`;
         })
         .join("");
-      itemtable.innerHTML = `<table><thead><tr>${head}</tr></thead><tbody>${rows.map((x) => "<tr>" + visibleColumns.map((c) => "<td>" + e(c.value(x)) + "</td>").join("") + "</tr>").join("")}</tbody></table><p class="muted">Gösterilen kayıt: ${rows.length}</p>`;
+      itemtable.innerHTML = `<table><thead><tr><th>SEÇ <input type="checkbox" aria-label="Görünen ürünleri seç" onchange="selectAllProducts(this.checked)"></th>${head}${me.role==="admin"?"<th>İşlem</th>":""}</tr></thead><tbody>${rows.map(x=>`<tr data-id="${e(x.id)}"><td><input type="checkbox" aria-label="Ürün seç ${e(x.serial)}" ${selectedProductIds.has(String(x.id))?"checked":""} onchange="selectProduct('${e(x.id)}',this.checked)"></td>`+visibleColumns.map(c=>"<td>"+(c.key==="age"&&productAge(x)>=45?'<span class="age-badge">'+e(c.value(x))+'</span>':e(c.value(x)))+"</td>").join("")+(me.role==="admin"?`<td class="row-actions"><button data-id="${e(x.id)}" onclick="editProduct(this.dataset.id)">Düzenle</button><button data-id="${e(x.id)}" onclick="deleteProduct(this.dataset.id)">Sil</button></td>`:"")+"</tr>").join("")}</tbody></table><p class="muted">Gösterilen kayıt: ${rows.length}</p>`;
+      updateSelectionCount();
     }
     function searchColumnOptions(input) {
       const q = input.value.toLocaleLowerCase("tr");
@@ -1600,19 +1618,24 @@
       try {
         prices = await api("prices");
         pricingContent.innerHTML =
-          '<p>Peşin kâr = satış fiyatı − alış fiyatı. Tarifeye ek kâr, buraya girilen birim tutardır. Alış fiyatı boşsa her seri için Excel’den kayıtlı fiyat kullanılır. Güncel liste raporun tüm aylarına uygulanır.</p><input id="priceSearch" placeholder="Ürün ara" oninput="renderPrices()"><p id="priceMessage" role="status"></p><div class="scroll" id="priceRows"></div>';
+          '<p>Peşin kâr = satış fiyatı − alış fiyatı. Tarifeye ek kâr, buraya girilen birim tutardır. Alış fiyatı boşsa her seri için Excel’den kayıtlı fiyat kullanılır. Güncel liste raporun tüm aylarına uygulanır.</p><button class="btn" onclick="saveAllPrices(this)">Toplu Kaydet</button><input id="priceSearch" placeholder="Ürün ara" oninput="renderPrices()"><p id="priceMessage" role="status"></p><div class="scroll" id="priceRows"></div>';
         renderPrices();
       } catch (err) {
         pricingContent.textContent = err.message;
       }
     }
+    const priceDrafts=new Map();
+    function rememberPrice(input){const row=input.closest("tr");priceDrafts.set(row.dataset.product,readPriceRow(row));}
+    function readPriceRow(row){const val=c=>{const raw=row.querySelector(c).value;return raw===""?null:Number(raw);};return {product:row.dataset.product,purchase_price:val(".price-purchase"),cash_sale_price:val(".price-cash"),tariff_profit:val(".price-tariff")};}
+    async function saveAllPrices(button){if(!priceDrafts.size){priceMessage.textContent="Değişiklik yok";return;}button.disabled=true;try{const r=await api("prices/bulk","PUT",{rows:[...priceDrafts.values()]});priceDrafts.clear();prices=await api("prices");renderPrices();priceMessage.textContent=r.saved+" fiyat toplu kaydedildi";}catch(err){priceMessage.textContent=err.message;}finally{button.disabled=false;}}
     function renderPrices() {
       const q = priceSearch.value.toLocaleLowerCase("tr");
       priceRows.innerHTML = `<table><tr><th>Ürün</th><th>Alış Fiyatı</th><th>Peşin Satış Fiyatı</th><th>Tarifeye Ek Kâr</th><th>İşlem</th></tr>${prices
         .filter((p) => p.product.toLocaleLowerCase("tr").includes(q))
+        .map(p=>({...p,...(priceDrafts.get(p.product)||{})}))
         .map(
           (p) =>
-            `<tr data-product="${e(p.product)}"><td>${e(p.product)}<small>Kayıtlı alış: ${money(p.stock_min)} – ${money(p.stock_max)}</small></td><td><input class="price-purchase" type="number" min="0" step="0.01" value="${e(p.purchase_price ?? "")}" placeholder="Serideki alış fiyatı"></td><td><input class="price-cash" type="number" min="0" step="0.01" value="${e(p.cash_sale_price ?? "")}"></td><td><input class="price-tariff" type="number" step="0.01" value="${e(p.tariff_profit ?? "")}"></td><td><button onclick="savePrice(this)">Kaydet</button></td></tr>`,
+            `<tr data-product="${e(p.product)}"><td>${e(p.product)}<small>Kayıtlı alış: ${money(p.stock_min)} – ${money(p.stock_max)}</small></td><td><input class="price-purchase" oninput="rememberPrice(this)" type="number" min="0" step="0.01" value="${e(p.purchase_price ?? "")}" placeholder="Serideki alış fiyatı"></td><td><input class="price-cash" oninput="rememberPrice(this)" type="number" min="0" step="0.01" value="${e(p.cash_sale_price ?? "")}"></td><td><input class="price-tariff" oninput="rememberPrice(this)" type="number" step="0.01" value="${e(p.tariff_profit ?? "")}"></td><td><button onclick="savePrice(this)">Kaydet</button></td></tr>`,
         )
         .join("")}</table>`;
     }
@@ -1629,6 +1652,7 @@
           cash_sale_price: read(".price-cash"),
           tariff_profit: read(".price-tariff"),
         });
+        priceDrafts.delete(row.dataset.product);
         prices = await api("prices");
         priceMessage.textContent = "Fiyatlama kaydedildi";
         renderPrices();
@@ -1696,10 +1720,10 @@
     function downloadUploadReport(type){writeExcel(type+"-hata-raporu",["Excel Satırı","Seri / IMEI","Sebep"],(uploadReports[type]||[]).map(x=>[x.row||"",String(x.serial),x.reason]));}
     function exportCurrentSection(){const section=document.querySelector("section.on");const matrices=[];section.querySelectorAll("table").forEach(t=>{const rs=[...t.rows].filter(r=>!r.hidden).map(r=>[...r.cells].filter(c=>!c.hidden).map(c=>{const control=c.querySelector("input:not([type=checkbox]),select");return c.dataset.title||c.querySelector("summary")?.childNodes[0]?.textContent?.trim()||(control?(control.tagName==="SELECT"?control.selectedOptions[0]?.textContent:control.value):c.innerText.replace(/\s+/g," ").trim());}));if(rs.length)matrices.push(rs);});if(!matrices.length){if(section.id==="home")matrices.push([["Gösterge","Adet","Ürün Alış Tutarı"],...[["Konsinye",items.filter(x=>!x.campaign)],["Peşin",items.filter(x=>x.campaign==="Peşin Satış")],["Tarifeye Ek",items.filter(x=>x.campaign==="Tarifeye Ek")]].map(([n,rs])=>[n,rs.length,rs.reduce((s,x)=>s+Number(x.price||0),0)])]);else if(section.id==="items")matrices.push([["Cari","Tür"],...directory.groups.filter(g=>g.active).map(g=>[g.name,"Ana Cari"]),...directory.dealers.filter(d=>d.active&&(!selectedGroup||String(d.account_id)===String(selectedGroup))).map(d=>[d.display_name,"Bayi"])]);else matrices.push([["Bilgi"],[section.innerText]]);}
       const wb=XLSX.utils.book_new();matrices.forEach((m,i)=>XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(m),"Rapor "+(i+1)));XLSX.writeFile(wb,"GNA-"+section.id+".xlsx");}
-    let activationHeaders=[],activationPreviewRows=[];
+    let activationHeaders=[],activationPreviewRows=[],activationFileObject=null;
     function activationColumn(row,key,names,fallback){const select=document.getElementById("activation-"+key);return select&&select.value?row[select.value]:pick(row,names,fallback);}
     function chosenCampaign(value){const select=[...document.querySelectorAll(".campaign-choice")].find(x=>x.dataset.campaign===value);return select?select.value:activationCampaign(value);}
-    async function previewActivation(){try{const f=activationfile.files[0];if(!f)return;const wb=XLSX.read(await f.arrayBuffer(),{type:"array"});const sh=wb.Sheets[wb.SheetNames.includes("Data")?"Data":wb.SheetNames[0]];activationPreviewRows=XLSX.utils.sheet_to_json(sh,{defval:"",raw:true});activationHeaders=Object.keys(activationPreviewRows[0]||{});const opts=activationHeaders.map(h=>`<option value="${e(h)}">${e(h)}</option>`).join("");activationCriteria.innerHTML='<h4>Excel sütunlarını seç</h4>'+[["campaign","Kampanya"],["serial","Seri / IMEI"],["date","Aktivasyon tarihi"]].map(([key,label])=>`<label>${label}<select id="activation-${key}" onchange="renderCampaignCriteria()"><option value="">Otomatik (${key==="campaign"?"E":key==="serial"?"H":"Tarih"})</option>${opts}</select></label>`).join("")+'<div id="campaignMapping"></div>';renderCampaignCriteria();}catch(err){activationmsg.textContent=err.message;}}
+    async function previewActivation(){try{const f=activationfile.files[0];if(!f)return;const wb=XLSX.read(await f.arrayBuffer(),{type:"array"});const sh=wb.Sheets[wb.SheetNames.includes("Data")?"Data":wb.SheetNames[0]];activationPreviewRows=XLSX.utils.sheet_to_json(sh,{defval:"",raw:true});activationFileObject=f;activationHeaders=Object.keys(activationPreviewRows[0]||{});const opts=activationHeaders.map(h=>`<option value="${e(h)}">${e(h)}</option>`).join("");activationCriteria.open=false;activationCriteria.innerHTML='<summary>Dosya Sütunları / Alt Kriterler</summary><h4>Excel sütunlarını seç</h4>'+[["campaign","Kampanya"],["serial","Seri / IMEI"],["date","Aktivasyon tarihi"]].map(([key,label])=>`<label>${label}<select id="activation-${key}" onchange="renderCampaignCriteria()"><option value="">Otomatik (${key==="campaign"?"E":key==="serial"?"H":"Tarih"})</option>${opts}</select></label>`).join("")+'<div id="campaignMapping"></div>';renderCampaignCriteria();}catch(err){activationmsg.textContent=err.message;}}
     function renderCampaignCriteria(){const values=[...new Set(activationPreviewRows.map(o=>str(activationColumn(o,"campaign",["Cihaz Kampanya Adı","Kampanya"],4))))].filter(Boolean);const previous=new Map([...document.querySelectorAll(".campaign-choice")].map(x=>[x.dataset.campaign,x.value]));campaignMapping.innerHTML='<h4>Kampanya alt kriterleri</h4>'+values.map(v=>{const mapped=previous.get(v)??activationCampaign(v);return `<label>${e(v)}<select class="campaign-choice" data-campaign="${e(v)}"><option value="" ${!mapped?"selected":""}>İşleme alma</option><option value="Peşin Satış" ${mapped==="Peşin Satış"?"selected":""}>Peşin Satış</option><option value="Tarifeye Ek" ${mapped==="Tarifeye Ek"?"selected":""}>Tarifeye Ek</option></select></label>`;}).join("");}
 
     function cellValue(cell){const control=cell.querySelector("input:not([type=checkbox]),select");return control?(control.tagName==="SELECT"?control.selectedOptions[0]?.textContent||"":control.value):cell.innerText.trim();}
@@ -1708,8 +1732,24 @@
     function sortGenericTable(button){const d=button.closest("details"),t=button.closest("table"),index=Number(d.dataset.index);const val=r=>{const str=cellValue(r.cells[index]);const m=str.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);if(m)return m[3]+m[2]+m[1];return str;};const rows=[...t.rows].slice(1).sort((a,b)=>Number(button.dataset.dir)*val(a).localeCompare(val(b),"tr",{numeric:true}));rows.forEach(r=>r.parentNode.appendChild(r));d.open=false;}
     function hideGenericColumn(button){const d=button.closest("details"),t=button.closest("table"),index=Number(d.dataset.index);[...t.rows].forEach(r=>{if(r.cells[index])r.cells[index].hidden=true;});d.open=false;}
     function restoreAllTableColumns(){document.querySelectorAll("section.on table td,section.on table th").forEach(c=>c.hidden=false);restoreColumns();}
-    document.addEventListener("toggle",event=>{const d=event.target;if(!d.matches?.(".column-filter")||!d.open)return;document.querySelectorAll(".column-filter[open]").forEach(other=>{if(other!==d)other.open=false;});const menu=d.querySelector(".column-menu"),rect=d.getBoundingClientRect();menu.style.position="fixed";menu.style.left=Math.max(8,Math.min(rect.left,innerWidth-270))+"px";menu.style.top=Math.max(8,Math.min(rect.bottom+4,innerHeight-menu.offsetHeight-8))+"px";},true);
+    document.addEventListener("toggle",event=>{const d=event.target;if(!d.matches?.(".column-filter")||!d.open)return;document.querySelectorAll(".column-filter[open]").forEach(other=>{if(other!==d)other.open=false;});},true);
     new MutationObserver(enhanceTables).observe(document.querySelector("main"),{childList:true,subtree:true});
+
+    let visibleProductRows=[],selectedProductIds=new Set();
+    function toggleSidebar(){const closed=document.body.classList.toggle("menu-collapsed");menuToggle.setAttribute("aria-expanded",String(!closed));try{localStorage.setItem("gna-menu-closed",String(closed));}catch{}}
+    try{if(localStorage.getItem("gna-menu-closed")==="true"){document.body.classList.add("menu-collapsed");menuToggle.setAttribute("aria-expanded","false");}}catch{}
+    async function startDealerPreview(){const value=previewSelect.value;if(!value)return;previewAccount=value.startsWith("account:")?value.slice(8):"";previewShop=value.startsWith("shop:")?value.slice(5):"";await init();}
+    async function endDealerPreview(){previewShop=previewAccount="";await init();}
+    function productAge(x){if(!/^\d{4}-\d{2}-\d{2}$/.test(x.shipped||""))return null;const today=new Intl.DateTimeFormat("sv-SE",{timeZone:"Europe/Bucharest"}).format(new Date());return Math.max(0,Math.floor((Date.parse(today+"T00:00:00Z")-Date.parse(x.shipped+"T00:00:00Z"))/86400000));}
+    function selectProduct(id,checked){checked?selectedProductIds.add(id):selectedProductIds.delete(id);updateSelectionCount();}
+    function selectAllProducts(checked){visibleProductRows.forEach(x=>selectProduct(String(x.id),checked));itemtable.querySelectorAll('tbody input[type="checkbox"]').forEach(x=>x.checked=checked);}
+    function updateSelectionCount(){selectionCount.textContent=visibleProductRows.filter(x=>selectedProductIds.has(String(x.id))).length+" seçili";}
+    function exportDealerProducts(){const selected=visibleProductRows.filter(x=>selectedProductIds.has(String(x.id))),rows=selected.length?selected:visibleProductRows;writeExcel("GNA-bayi-urunleri",productColumns.map(c=>c.label),rows.map(x=>productColumns.map(c=>c.key==="price"?Number(x.price):c.value(x))));}
+    function editProduct(id){const x=items.find(x=>String(x.id)===id);if(!x||me.role!=="admin")return;editItemId.value=id;editItemShop.value=x.shop;editItemSerial.value=x.serial;editItemProduct.value=x.product||"";editItemPrice.value=x.price;editItemShipped.value=x.shipped||"";editItemSold.value=x.sold||"";editItemCampaign.value=x.campaign||"";editItemPaid.checked=!!x.paid_on;editItemVF.checked=!!x.vf_paid_on;itemEditMessage.textContent="";itemEditor.showModal();}
+    async function refreshProductList(){const context={dealer:selectedDealer,group:selectedGroup,all:homeAll};await refresh();selectedDealer=context.dealer;selectedGroup=context.group;homeAll=context.all;showProducts();draw();}
+    async function saveProductEdit(){try{await api("items/"+editItemId.value,"PATCH",{shop:editItemShop.value,serial:editItemSerial.value,product:editItemProduct.value,price:Number(editItemPrice.value),shipped:editItemShipped.value,sold:editItemSold.value,campaign:editItemCampaign.value,paid:editItemPaid.checked,vf_paid:editItemVF.checked});itemEditor.close();await refreshProductList();}catch(err){itemEditMessage.textContent=err.message;}}
+    async function deleteProduct(id){if(!confirm("Bu ürünün seri, satış ve ödeme kaydı silinecek. Silmek istiyor musunuz?"))return;try{await api("items/"+id,"DELETE");selectedProductIds.delete(id);await refreshProductList();}catch(err){alert(err.message);}}
+    function renderCampaignCriteriaIfReady(){if(document.getElementById("campaignMapping")){document.querySelectorAll(".campaign-choice").forEach(select=>{const key=norm(select.dataset.campaign);if(key.includes(norm("AYLIK TAAHHUTLU KAMPANYALAR"))||key.includes(norm("GNA BAYI CIHAZ KAMPANYASI")))select.value=activationCampaign(select.dataset.campaign);});renderCampaignCriteria();}}
     init();
   </script>
 </html>

@@ -257,6 +257,8 @@ const workbook = (rows) => {
   assert(productRows.some(x=>x.Seri==="2BROWSER-CASH"));
   await nav("Excel Yükle");
   await page.locator("#activationfile").setInputFiles({name:"custom-campaign.xlsx",mimeType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",buffer:workbook([["Aktivasyon Tarihi","Cihaz Kampanya Adı","Cihaz IMEI"],["14.10.2026","Özel Kampanya","2BROWSER-CASH"]])});
+  await page.locator('.campaign-choice[data-campaign="Özel Kampanya"]').waitFor({state:"attached"});
+  await page.locator('#activationCriteria summary').click();
   await page.locator('.campaign-choice[data-campaign="Özel Kampanya"]').waitFor();
   await page.locator('.campaign-choice[data-campaign="Özel Kampanya"]').selectOption("Tarifeye Ek");
   await page.locator("button[onclick=\"uploadFile('activation')\"]").click();
@@ -357,7 +359,7 @@ const workbook = (rows) => {
   );
   assert(
     (await page.locator("#itemtable tbody").innerText()).includes(
-      "VF’den Ödeme Bekleniyor",
+      "Vodafone’dan alacak yok",
     ),
   );
   await nav("Fiyatlama Listesi");
@@ -432,6 +434,50 @@ const workbook = (rows) => {
   await page.locator('#users button[onclick="createUser()"]').click();
   await page.waitForFunction(()=>usermsg.textContent.includes("güncellendi"));
   assert.equal((await read("users")).find(x=>x.username==="edited-dealer").role,"admin");
+  await nav("Fiyatlama Listesi");
+  await page.locator("#priceSearch").fill("Bulk A");
+  const bulkRow=page.locator('#priceRows tr[data-product="Bulk A"]');
+  await bulkRow.locator(".price-cash").fill("210");
+  await page.locator("#priceSearch").fill("Bulk B");
+  await page.locator('#priceRows tr[data-product="Bulk B"] .price-cash').fill("120");
+  await page.getByRole("button",{name:"Toplu Kaydet",exact:true}).click();
+  await page.waitForFunction(()=>priceMessage.textContent.includes("2 fiyat toplu kaydedildi"));
+  const bulkPrices=await read("prices");assert.equal(Number(bulkPrices.find(x=>x.product==="Bulk A").cash_sale_price),210);assert.equal(Number(bulkPrices.find(x=>x.product==="Bulk B").cash_sale_price),120);
+  await upload("stock","browser-manual.xlsx",[["SeriNo","MusteriKisaAd","Urun","BirimFiyat","IslemTarihi"],["2BROWSER-MANUAL","Girne Çarşı","Edit Browser Phone",100,"01.01.2026"]]);
+  await openDealer("Girne Çarşı");
+  assert.equal(await page.locator("#productfilter").isVisible(),false);
+  const manualId=(await read("items")).find(x=>x.serial==="2BROWSER-MANUAL").id;
+  let manualRow=page.locator('#itemtable tr[data-id="'+manualId+'"]');
+  assert((await manualRow.innerText()).includes("45 gün geçti"));
+  await manualRow.locator('input[type="checkbox"]').check();
+  const selectedDownloadPromise=page.waitForEvent("download");
+  await page.getByRole("button",{name:"Excel’e Aktar",exact:true}).click();
+  const selectedDownload=await selectedDownloadPromise;const selectedWB=XLSX.readFile(await selectedDownload.path());const selectedRows=XLSX.utils.sheet_to_json(selectedWB.Sheets[selectedWB.SheetNames[0]]);assert.equal(selectedRows.length,1);assert.equal(selectedRows[0].Seri,"2BROWSER-MANUAL");
+  await page.locator("#filter-product summary").click();
+  assert.equal(await page.locator("#filter-product .column-menu").evaluate(el=>getComputedStyle(el).position),"absolute");
+  await page.locator("#filter-product summary").click();
+  await manualRow.getByRole("button",{name:"Düzenle",exact:true}).click();
+  await page.locator("#editItemProduct").fill("UI Edited Product");
+  await page.locator('#itemEditor button[onclick="saveProductEdit()"]').click();
+  await page.locator("#itemEditor").waitFor({state:"hidden"});
+  await page.waitForFunction(()=>document.querySelector("#itemtable").innerText.includes("UI Edited Product"));
+  manualRow=page.locator('#itemtable tr[data-id="'+manualId+'"]');await manualRow.getByRole("button",{name:"Sil",exact:true}).click();
+  await page.waitForFunction(id=>!document.querySelector('#itemtable tr[data-id="'+id+'"]'),manualId);
+  assert(!(await read("items")).some(x=>String(x.id)===String(manualId)));
+  await nav("Excel Yükle");
+  const boxes=await page.locator(".uploadgrid > .uploadbox").evaluateAll(els=>els.map(el=>({x:el.getBoundingClientRect().x,y:el.getBoundingClientRect().y})));
+  assert.equal(boxes.length,4);assert(boxes.every(box=>Math.abs(box.y-boxes[0].y)<2));assert(boxes[3].x>boxes[0].x);
+  await page.screenshot({path:path.resolve(__dirname,"../artifacts/upload-cards.png"),fullPage:true});
+  assert.equal(await page.locator("#defaultTariff").isVisible(),true);assert.equal(await page.locator("#defaultCash").isVisible(),true);
+  const beforeWidth=await page.locator("main").evaluate(el=>el.getBoundingClientRect().width);
+  await page.locator("#menuToggle").click();assert.equal(await page.locator("#sidebar").isVisible(),false);assert((await page.locator("main").evaluate(el=>el.getBoundingClientRect().width))>beforeWidth);await page.locator("#menuToggle").click();
+  await page.locator("#previewSelect").selectOption("shop:Girne Çarşı");await page.getByRole("button",{name:"Görüntüle",exact:true}).click();await page.locator("#previewNotice").waitFor({state:"visible"});
+  assert.equal(await page.locator("nav").getByRole("button",{name:"Fiyatlama Listesi",exact:true}).isVisible(),false);await nav("Bayi Carileri");assert(!(await page.locator("#dealerRows").innerText()).includes("Yenikent"));
+  await page.getByRole("button",{name:"Yönetici görünümüne dön",exact:true}).click();await page.locator("#previewNotice").waitFor({state:"hidden"});
+  await nav("Kullanıcı Yönetimi");await page.locator('#userlist button[data-user]').first().waitFor();
+  await page.locator('#users button[onclick="cancelUserEdit()"]').click();await page.locator("#newaccount").selectOption(String(common.id));await page.locator("#newname").fill("browser-parent");await page.locator("#newpass").fill("test-password-123");await page.locator('#users button[onclick="createUser()"]').click();await page.waitForFunction(()=>usermsg.textContent.includes("oluşturuldu"));
+  await nav("Çıkış");await login("browser-parent");await nav("Bayi Carileri");assert((await page.locator("#dealerRows").innerText()).includes("Yenikent"));assert((await page.locator("#dealerRows").innerText()).includes("Girne Çarşı"));
+  await nav("Çıkış");await login("admin");
   await nav("Çıkış");
   await login("dealer");
   assert.equal(
