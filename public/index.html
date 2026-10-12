@@ -470,7 +470,7 @@
       </section>
       <section id="users">
         <div class="card">
-          <h3>Yeni SHOP Kullanıcısı</h3>
+          <h3>Yeni Kullanıcı</h3>
           <input id="shop" placeholder="Bayi cari / SHOP adı" /><input
             id="newname"
             placeholder="Kullanıcı adı"
@@ -478,7 +478,10 @@
             id="newpass"
             type="password"
             placeholder="Şifre (en az 12 karakter)"
-          /><button class="btn" onclick="createUser()">Oluştur</button>
+          /><button type="button" onclick="newpass.type=newpass.type==='password'?'text':'password';this.textContent=newpass.type==='text'?'Şifreyi gizle':'Şifreyi göster'">Şifreyi göster</button>
+          <label>Yetki <select id="newrole"><option value="dealer">Bayi</option><option value="admin">Yönetici (tüm bayilere erişir)</option></select></label>
+          <button class="btn" onclick="createUser()">Kaydet</button>
+          <p class="muted">Şifreyi kaydetmeden önce gösterebilirsiniz. Kaydedilen şifreler güvenlik için okunabilir biçimde tutulmaz.</p>
           <p id="usermsg"></p>
           <div id="userlist"></div>
         </div>
@@ -1123,6 +1126,7 @@
           username: newname.value,
           shop: shop.value,
           password: newpass.value,
+          role: newrole.value,
         });
         usermsg.textContent = "Kullanıcı oluşturuldu";
         newpass.value = "";

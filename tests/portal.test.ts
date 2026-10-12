@@ -801,3 +801,20 @@ test("optional prefix filter is enforced for the entire file and can be disabled
   expect(all.data.added).toBe(1);
   await api("uploads/" + all.data.batch_id + "/undo", "POST");
 });
+
+test("only admins create users with validated roles and passwords never appear in lists", async () => {
+  expect((await api("users","POST",{username:"unauthorized",shop:"Girne Çarşı",password:"test-password-123",role:"admin"},dealerCookie)).status).toBe(403);
+  expect((await api("users","POST",{username:"badrole",shop:"Girne Çarşı",password:"test-password-123",role:"owner"})).status).toBe(400);
+  for(const role of ["dealer","admin"]) {
+    const username="new-"+role;
+    expect((await api("users","POST",{username,shop:"Girne Çarşı",password:"test-password-123",role})).status).toBe(200);
+    const login=await api("login","POST",{username,password:"test-password-123"},"");
+    expect(login.status).toBe(200);
+    const cookie=login.headers.get("set-cookie").split(";")[0];
+    expect((await api("me","GET",undefined,cookie)).data.role).toBe(role);
+    expect((await api("users","GET",undefined,cookie)).status).toBe(role==="admin"?200:403);
+  }
+  const users=(await api("users")).data;
+  expect(users.find(x=>x.username==="new-admin")).toEqual({username:"new-admin",shop:"Girne Çarşı",role:"admin"});
+  expect(JSON.stringify(users)).not.toContain("test-password-123");
+});

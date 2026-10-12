@@ -957,10 +957,14 @@ Bun.serve({
           return bad(
             "SHOP, kullanıcı adı ve en az 12 karakterli şifre gerekli",
           );
+        const role = b.role || "dealer";
+        if (!["dealer", "admin"].includes(role)) return bad("Geçersiz kullanıcı rolü");
+        if ((await run("SELECT 1 FROM gna_users WHERE username=$1", [String(b.username).trim()])).length) return bad("Bu kullanıcı adı zaten mevcut", 409);
         const salt = crypto.randomUUID();
-        await run("INSERT INTO gna_users VALUES($1,$2,'dealer',$3,$4)", [
+        await run("INSERT INTO gna_users VALUES($1,$2,$3,$4,$5)", [
           String(b.username).trim(),
           String(b.shop).trim(),
+          role,
           salt,
           await digest(salt + String(b.password)),
         ]);
