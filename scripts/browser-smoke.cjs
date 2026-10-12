@@ -341,9 +341,9 @@ const workbook = (rows) => {
   assert((await stockWaiting.innerText()).includes('Stokta'));
   assert((await stockWaiting.innerText()).includes('VF’den Ödeme Bekleniyor'));
   assert((await stockWaiting.innerText()).includes('VDM’ye Ödendi'));
-  await page.evaluate(()=>{hiddenColumns.add('paid');draw();});
+  await page.evaluate(()=>hideColumn('paid'));
   assert.equal(await page.locator('#filter-paid').count(),1);
-  await page.evaluate(()=>hiddenColumns.delete('paid'));
+  await page.evaluate(()=>restoreColumns());
   await page.locator('#productViews button[data-bucket="paid"]').click();
   assert((await page.locator('#itemtable tbody').innerText()).includes('2BROWSER-CASH'));
   assert.equal(await page.locator('#filter-vf').count(),0);
