@@ -99,24 +99,31 @@ const audit = (tx, u, action, details) =>
   );
 function importDate(value) {
   if (value === undefined || value === null || value === "") return null;
-  let text = String(value).trim(),
-    m = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T].*)?$/);
-  if (!m) {
-    const tr = text.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})(?:\s.*)?$/);
-    if (tr) m = [tr[0], tr[3], tr[2].padStart(2, "0"), tr[1].padStart(2, "0")];
+  const text = String(value).trim();
+  // Excel serials include a fractional time; keep the calendar day.
+  if (/^\d{5}(?:[.,]\d+)?$/.test(text)) {
+    const n = Number(text.replace(",", "."));
+    if (n >= 20000 && n < 90000)
+      return new Date((Math.floor(n) - 25569) * 86400000).toISOString().slice(0, 10);
   }
-  if (!m)
-    throw new UserError(
-      "Excel tarih biçimi geçersiz: YYYY-AA-GG veya GG.AA.YYYY kullanın",
-    );
-  const iso = m[1] + "-" + m[2] + "-" + m[3],
-    date = new Date(iso + "T00:00:00Z");
-  if (
-    !Number.isFinite(date.getTime()) ||
-    date.toISOString().slice(0, 10) !== iso
-  )
-    throw new UserError("Excel tarihi geçersiz");
-  return iso;
+  let m = text.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})(?:[ T].*)?$/);
+  if (!m) {
+    const tr = text.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2}|\d{4})(?:[ T].*)?$/);
+    if (tr) m = [tr[0], tr[3].length === 2 ? "20" + tr[3] : tr[3], tr[2], tr[1]];
+  }
+  if (!m) {
+    const months = ["ocak", "subat", "mart", "nisan", "mayis", "haziran", "temmuz", "agustos", "eylul", "ekim", "kasim", "aralik"];
+    const normalized = text.toLocaleLowerCase("tr-TR").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i");
+    const tr = normalized.match(/^(\d{1,2})[ .-]+([a-z]+)[ .-]+(\d{4})(?:\s.*)?$/);
+    if (tr) {
+      const month = months.findIndex(name => name === tr[2] || name.slice(0, 3) === tr[2]);
+      if (month >= 0) m = [tr[0], tr[3], String(month + 1), tr[1]];
+    }
+  }
+  if (!m) return null;
+  const iso = m[1] + "-" + m[2].padStart(2, "0") + "-" + m[3].padStart(2, "0");
+  const date = new Date(iso + "T00:00:00Z");
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === iso ? iso : null;
 }
 const uploadKinds = [
   "stock",
@@ -990,6 +997,13 @@ Bun.serve({
               skipped++;
               continue;
             }
+            const dateField = b.kind === "stock" ? "shipped" : b.kind === "activation" ? "sold" : "paid_on";
+            const rawDate = x[dateField];
+            const parsedDate = importDate(rawDate);
+            if (rawDate !== undefined && rawDate !== null && String(rawDate).trim() && !parsedDate)
+              report(serial, "Tarih okunamadı; tarih boş bırakıldı, varsa mevcut tarih korundu");
+            // Work on a copy so an unreadable date cannot erase an existing date.
+            x[dateField] = parsedDate;
             let changed = false;
             if (
               b.kind === "stock" &&

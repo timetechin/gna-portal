@@ -723,30 +723,31 @@ test("legacy uploads cannot be guessed and new management/undo routes require ad
       (await api(path as string, method as string, body, dealerCookie)).status,
     ).toBe(403);
 });
-test("invalid dates and contradictory duplicate activation rows roll back the entire chunk", async () => {
-  const before = (await api("items")).data.find((x) => x.serial === "G1");
+test("unreadable dates do not block activation or erase existing dates; conflicting campaigns remain atomic", async () => {
+  const before = (await api("items")).data.find(x => x.serial === "G1");
   const r = await api("import", "POST", {
-    kind: "activation",
-    rows: [{ serial: "G1", campaign: "Peşin Satış", sold: "2026-02-30" }],
+    kind: "activation", rows: [{serial:"G1", campaign:"Peşin Satış", sold:"2026-02-30"}],
   });
-  expect(r.status).toBe(400);
-  expect((await api("items")).data.find((x) => x.serial === "G1")).toEqual(
-    before,
-  );
-  expect(
-    (
-      await api("import", "POST", {
-        kind: "activation",
-        rows: [
-          { serial: "G1", campaign: "Peşin Satış" },
-          { serial: "G1", campaign: "Tarifeye Ek" },
-        ],
-      })
-    ).status,
-  ).toBe(409);
-  expect((await api("items")).data.find((x) => x.serial === "G1")).toEqual(
-    before,
-  );
+  expect(r.status).toBe(200);
+  expect(r.data.issues[0].reason).toContain("Tarih okunamadı");
+  const changed = (await api("items")).data.find(x => x.serial === "G1");
+  expect(changed.sold).toBe(before.sold);
+  expect(changed.campaign).toBe("Peşin Satış");
+  expect((await api("import", "POST", {kind:"activation",rows:[
+    {serial:"G1",campaign:"Tarifeye Ek"},{serial:"G1",campaign:"Peşin Satış"}
+  ]})).status).toBe(409);
+  expect((await api("items")).data.find(x=>x.serial==="G1")).toEqual(changed);
+  expect((await api("uploads/"+r.data.batch_id+"/undo","POST")).status).toBe(200);
+});
+test("common Excel dates are normalized automatically and stay reversible", async () => {
+  for (const [input, expected] of [["12/10/2026 14:30","2026-10-12"],["12-10-26","2026-10-12"],["2026/10/12","2026-10-12"],["12 Ekim 2026","2026-10-12"],["12 Şubat 2026","2026-02-12"],["46307,9999","2026-10-12"]]) {
+    const before=(await api("items")).data.find(x=>x.serial==="G1");
+    const r=await api("import","POST",{kind:"activation",rows:[{serial:"G1",campaign:"Peşin Satış",sold:input}]});
+    expect(r.status).toBe(200);
+    expect((await api("items")).data.find(x=>x.serial==="G1").sold).toBe(expected);
+    expect((await api("uploads/"+r.data.batch_id+"/undo","POST")).status).toBe(200);
+    expect((await api("items")).data.find(x=>x.serial==="G1")).toEqual(before);
+  }
 });
 test("optional prefix filter is enforced for the entire file and can be disabled", async () => {
   const batch = (

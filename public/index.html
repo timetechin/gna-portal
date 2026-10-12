@@ -1154,7 +1154,7 @@
     const str = (x) => String(x ?? "").trim();
     const dt = (x) =>
       typeof x === "number" && x > 20000 && x < 90000
-        ? new Date(Math.round((x - 25569) * 86400000))
+        ? new Date((Math.floor(x) - 25569) * 86400000)
             .toISOString()
             .slice(0, 10)
         : str(x);
@@ -1349,7 +1349,7 @@
           " · Atlandı: " +
           skipped +
           (issues.length
-            ? " · Eşleşme sorunları: " +
+            ? " · Kontrol edilecek satırlar: " +
               issues.map((x) => x.serial + ": " + x.reason).join("; ")
             : "");
         await refresh();
