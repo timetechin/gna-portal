@@ -883,3 +883,23 @@ test("admins edit and delete product rows; dealer changes and duplicate serials 
  expect((await api("items/"+item.id,"DELETE")).status).toBe(200);
  expect((await api("items")).data.some(x=>x.id===item.id)).toBe(false);
 });
+
+test("payment serial formatting is normalized and a supplied dealer resolves an ambiguous match",async()=>{
+ const stock=await api("import","POST",{kind:"stock",rows:[{serial:"200000400020106",shop:"Pay A",product:"Payment Test",price:1},{serial:"200000400020106",shop:"Pay B",product:"Payment Test",price:1},{serial:"200 000 400020107",shop:"Pay A",product:"Payment Test",price:1}]});
+ const payment=await api("import","POST",{kind:"payment",rows:[{serial:"'2.00000400020106E+14",shop:"Pay B",paid_on:"12.10.26"},{serial:"200000400020107.0",paid_on:""}]});
+ expect(payment.status).toBe(200);expect(payment.data.added).toBe(2);
+ const rows=(await api("items")).data;
+ expect(rows.find(x=>x.shop==="Pay A"&&x.serial==="200000400020106").paid_on).toBe(null);
+ expect(rows.find(x=>x.shop==="Pay B"&&x.serial==="200000400020106").paid_on).toBe("2026-10-12");
+ expect(rows.find(x=>x.serial==="200 000 400020107").paid_on).toBe("Ödendi");
+ expect((await api("uploads/"+payment.data.batch_id+"/undo","POST")).status).toBe(200);
+ expect((await api("uploads/"+stock.data.batch_id+"/undo","POST")).status).toBe(200);
+});
+
+test("stock reuploads preserve legacy serial spelling and avoid duplicate products",async()=>{
+ const stock=await api("import","POST",{kind:"stock",rows:[{serial:"200 000 400021000",shop:"Spacing Shop",product:"Spacing Phone",price:10}]});
+ const refill=await api("import","POST",{kind:"stock",rows:[{serial:"200000400021000",shop:"Spacing Shop",product:"Changed Product",price:20,shipped:"2026-10-12"}]});
+ const items=(await api("items")).data.filter(x=>x.shop==="Spacing Shop");expect(items.length).toBe(1);expect(items[0].serial).toBe("200 000 400021000");expect(Number(items[0].price)).toBe(10);expect(items[0].product).toBe("Spacing Phone");expect(items[0].shipped).toBe("2026-10-12");
+ expect((await api("uploads/"+refill.data.batch_id+"/undo","POST")).status).toBe(200);
+ expect((await api("uploads/"+stock.data.batch_id+"/undo","POST")).status).toBe(200);
+});

@@ -73,6 +73,7 @@ await db.begin(async (tx) => {
     "CREATE TABLE IF NOT EXISTS gna_upload_effects(id bigserial PRIMARY KEY,batch_id uuid NOT NULL REFERENCES gna_upload_batches(id),entity text NOT NULL,record_key text NOT NULL,field text NOT NULL,old_value jsonb,new_value jsonb,created_at timestamptz NOT NULL DEFAULT now(),UNIQUE(batch_id,entity,record_key,field))",
   );
   await tx.unsafe("ALTER TABLE gna_users ADD COLUMN IF NOT EXISTS account_id bigint REFERENCES gna_main_accounts(id)");
+  await tx.unsafe("CREATE INDEX IF NOT EXISTS gna_items_serial_normalized_idx ON gna_items(regexp_replace(serial,'[[:space:]]','','g'))");
   await tx.unsafe(
     "ALTER TABLE gna_upload_batches ADD COLUMN IF NOT EXISTS only_prefix_2 boolean NOT NULL DEFAULT false",
   );
@@ -1069,9 +1070,13 @@ Bun.serve({
           for (const x of b.rows) {
             sourceRow = Number.isInteger(x.source_row) ? x.source_row : null;
             if(b.kind==="activation"&&x.ignore===true){skipped++;continue;}
-            const serial = String(x.serial || "")
-              .trim()
-              .slice(0, 100);
+            const rawSerial=String(x.serial||"").trim().slice(0,100);
+            let serial=rawSerial;
+            if(b.kind!=="stock"){
+              serial=serial.replace(/^'/,"").replace(/[\s\u200b\ufeff]/g,"");
+              if(/^\d+[.,]0+$/.test(serial))serial=serial.replace(/[.,]0+$/,"");
+              if(/^\d+(?:[.,]\d+)?e[+-]?\d+$/i.test(serial)){const number=Number(serial.replace(",","."));if(Number.isSafeInteger(number))serial=String(number);}
+            }
             if (!serial) {
               skipped++;
               continue;
@@ -1099,6 +1104,9 @@ Bun.serve({
                 skipped++;
                 continue;
               }
+              const sameSerial=await tx.unsafe("SELECT serial FROM gna_items WHERE shop=$1 AND (serial=$2 OR regexp_replace(serial,'[[:space:]]','','g')=$3) FOR UPDATE",[shop,serial,serial.replace(/\s/g,"")]);
+              if(sameSerial.length>1){report(serial,"Aynı bayide farklı yazımla birden fazla seri bulundu");skipped++;continue;}
+              if(sameSerial.length)serial=sameSerial[0].serial;
               const created = await tx.unsafe(
                 "INSERT INTO gna_items(serial,shop,product,price,shipped) VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING RETURNING id",
                 [
@@ -1153,15 +1161,14 @@ Bun.serve({
                 }
               }
             } else {
-              const matches = await tx.unsafe(
-                "SELECT * FROM gna_items WHERE serial=$1 FOR UPDATE",
-                [serial],
-              );
+              let matches = await tx.unsafe("SELECT * FROM gna_items WHERE serial=$1 OR serial=$2 FOR UPDATE",[serial,rawSerial]);
+              if(!matches.length)matches=await tx.unsafe("SELECT * FROM gna_items WHERE regexp_replace(serial,'[[:space:]]','','g')=$1 FOR UPDATE",[serial]);
+              if(matches.length>1&&x.shop){const narrowed=matches.filter(row=>row.shop===String(x.shop).trim());if(narrowed.length)matches=narrowed;}
               if (matches.length !== 1) {
                 report(
                   serial,
                   matches.length
-                    ? "Seri birden fazla bayide bulundu"
+                    ? "Seri birden fazla bayide bulundu · "+matches.map(row=>row.shop).join(", ")+(x.shop?" · Dosyadaki bayi: "+String(x.shop):"")
                     : "Seri bulunamadı",
                 );
                 skipped++;

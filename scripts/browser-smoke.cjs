@@ -250,7 +250,7 @@ const workbook = (rows) => {
   assert.equal(await page.locator("#filter-serial").count(),0);
   await page.getByRole("button",{name:"Gizli sütunları göster",exact:true}).click();
   const productDownloadPromise=page.waitForEvent("download");
-  await page.getByRole("button",{name:"Excel İndir",exact:false}).click();
+  await page.getByRole("button",{name:"Excel’e Aktar",exact:true}).click();
   const productDownload=await productDownloadPromise;
   const productWB=XLSX.readFile(await productDownload.path());
   const productRows=XLSX.utils.sheet_to_json(productWB.Sheets[productWB.SheetNames[0]]);
@@ -275,6 +275,27 @@ const workbook = (rows) => {
   const errorRows=XLSX.utils.sheet_to_json(errorWB.Sheets[errorWB.SheetNames[0]]);
   assert.equal(errorRows.length,125);assert.equal(errorRows[124]["Seri / IMEI"],"MISSING-BROWSER-124");assert.equal(errorRows[124].Sebep,"Seri bulunamadı");
   await undo("missing-report.xlsx");
+  await upload("payment","generic-payment-headers.xlsx",[
+    ["Ödeme raporu"],
+    ["Column1","Column2","Column3","Column4","Column5","Column6"],
+    ["Girne Çarşı",46100,"Browser Phone","2BROWSER-CASH",100,"TARİFEYE EK"]
+  ]);
+  assert.equal(await page.locator("#paymentSerial").inputValue(),"3");
+  assert.equal(await page.locator("#paymentHeader").inputValue(),"2");
+  assert.equal((await read("items")).find(x=>x.serial==="2BROWSER-CASH").paid_on,"Ödendi");
+  await undo("generic-payment-headers.xlsx");
+  if(process.env.GNA_PAYMENT_SAMPLE){
+    const sampleWB=XLSX.readFile(process.env.GNA_PAYMENT_SAMPLE);const sampleData=XLSX.utils.sheet_to_json(sampleWB.Sheets["ANA VERILER"],{header:1,raw:true}).slice(1);
+    const seed=await page.evaluate(async rows=>{const r=await fetch("/api/import",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({kind:"stock",filename:"payment-sample-seed.xlsx",rows})});if(!r.ok)throw Error("Sample fixture failed");return r.json();},sampleData.map(row=>({serial:String(row[3]),shop:"Payment Sample Fixture",product:"Sample Test",price:1})));
+    await nav("Excel Yükle");await page.locator("#paymentfile").setInputFiles(process.env.GNA_PAYMENT_SAMPLE);
+    await page.waitForFunction(()=>document.getElementById("paymentSerial")?.value==="3");
+    assert.equal(await page.locator("#paymentSheet").inputValue(),"ANA VERILER");
+    const parsed=await page.evaluate(()=>readPaymentRows("payment"));assert.equal(parsed.rows.length,798);assert.equal(parsed.rows[0].source_row,2);
+    await page.locator("button[onclick=\"uploadFile('payment')\"]").click();await page.waitForFunction(()=>paymentmsg.textContent.startsWith("Güncellendi:"));assert((await page.locator("#paymentmsg").innerText()).includes("Güncellendi: 798"));
+    await undo(require("node:path").basename(process.env.GNA_PAYMENT_SAMPLE));
+    const sampleItems=(await read("items")).filter(x=>x.shop==="Payment Sample Fixture");assert.equal(sampleItems.length,798);assert(sampleItems.every(x=>!x.paid_on));
+    await page.evaluate(async id=>{const r=await fetch("/api/uploads/"+id+"/undo",{method:"POST"});if(!r.ok)throw Error("Sample fixture undo failed");},seed.batch_id);
+  }
   await upload("payment", "browser-vdm.xlsx", [
     ["SeriNo"],
     ["2BROWSER-CASH"],
@@ -362,6 +383,7 @@ const workbook = (rows) => {
       "Vodafone’dan alacak yok",
     ),
   );
+  assert((await page.locator("#itemtable tr.tariff-row .tariff-badge").count())>0);
   await nav("Fiyatlama Listesi");
   const priceRow = page.locator('#priceRows tr[data-product="Browser Phone"]');
   await priceRow.locator(".price-purchase").fill("100");
@@ -448,7 +470,8 @@ const workbook = (rows) => {
   assert.equal(await page.locator("#productfilter").isVisible(),false);
   const manualId=(await read("items")).find(x=>x.serial==="2BROWSER-MANUAL").id;
   let manualRow=page.locator('#itemtable tr[data-id="'+manualId+'"]');
-  assert((await manualRow.innerText()).includes("45 gün geçti"));
+  assert.equal((await manualRow.locator(".age-badge").innerText()),"45 gün geçti");
+  assert.equal(await page.locator("#topExcelDownload").isVisible(),false);
   await manualRow.locator('input[type="checkbox"]').check();
   const selectedDownloadPromise=page.waitForEvent("download");
   await page.getByRole("button",{name:"Excel’e Aktar",exact:true}).click();
@@ -470,7 +493,7 @@ const workbook = (rows) => {
   await page.screenshot({path:path.resolve(__dirname,"../artifacts/upload-cards.png"),fullPage:true});
   assert.equal(await page.locator("#defaultTariff").isVisible(),true);assert.equal(await page.locator("#defaultCash").isVisible(),true);
   const beforeWidth=await page.locator("main").evaluate(el=>el.getBoundingClientRect().width);
-  await page.locator("#menuToggle").click();assert.equal(await page.locator("#sidebar").isVisible(),false);assert((await page.locator("main").evaluate(el=>el.getBoundingClientRect().width))>beforeWidth);await page.locator("#menuToggle").click();
+  await page.locator("#menuToggle").click();assert.equal(await page.locator("#sidebar").isVisible(),true);await page.waitForFunction(()=>document.getElementById("sidebar").getBoundingClientRect().width<100);assert((await page.locator("#sidebar").evaluate(el=>el.getBoundingClientRect().width))<100);assert((await page.locator("main").evaluate(el=>el.getBoundingClientRect().width))>beforeWidth);await page.locator("#menuToggle").click();
   await page.locator("#previewSelect").selectOption("shop:Girne Çarşı");await page.getByRole("button",{name:"Görüntüle",exact:true}).click();await page.locator("#previewNotice").waitFor({state:"visible"});
   assert.equal(await page.locator("nav").getByRole("button",{name:"Fiyatlama Listesi",exact:true}).isVisible(),false);await nav("Bayi Carileri");assert(!(await page.locator("#dealerRows").innerText()).includes("Yenikent"));
   await page.getByRole("button",{name:"Yönetici görünümüne dön",exact:true}).click();await page.locator("#previewNotice").waitFor({state:"hidden"});
