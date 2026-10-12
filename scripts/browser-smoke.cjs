@@ -288,7 +288,7 @@ const workbook = (rows) => {
     const sampleWB=XLSX.readFile(process.env.GNA_PAYMENT_SAMPLE);const sampleData=XLSX.utils.sheet_to_json(sampleWB.Sheets["ANA VERILER"],{header:1,raw:true}).slice(1);
     const seed=await page.evaluate(async rows=>{const r=await fetch("/api/import",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({kind:"stock",filename:"payment-sample-seed.xlsx",rows})});if(!r.ok)throw Error("Sample fixture failed");return r.json();},sampleData.map(row=>({serial:String(row[3]),shop:"Payment Sample Fixture",product:"Sample Test",price:1})));
     await nav("Excel Yükle");await page.locator("#paymentfile").setInputFiles(process.env.GNA_PAYMENT_SAMPLE);
-    await page.waitForFunction(()=>document.getElementById("paymentSerial")?.value==="3");
+    await page.waitForFunction(()=>document.getElementById("paymentSerial")?.value==="3"&&document.getElementById("paymentSheet")?.value==="ANA VERILER");
     assert.equal(await page.locator("#paymentSheet").inputValue(),"ANA VERILER");
     const parsed=await page.evaluate(()=>readPaymentRows("payment"));assert.equal(parsed.rows.length,798);assert.equal(parsed.rows[0].source_row,2);
     await page.locator("button[onclick=\"uploadFile('payment')\"]").click();await page.waitForFunction(()=>paymentmsg.textContent.startsWith("Güncellendi:"));assert((await page.locator("#paymentmsg").innerText()).includes("Güncellendi: 798"));
