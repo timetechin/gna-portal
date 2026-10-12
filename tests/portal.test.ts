@@ -916,6 +916,10 @@ test("list rules persist for all users, restrict writes to admins, and reject in
  expect(initial.data.rules.paid.showVodafone).toBe(false);
  const rules=structuredClone(initial.data.rules);rules.paid.sales=["stock"];rules.vf.sales=["stock","tariff"];
  expect((await api("list-settings","PUT",{rules},dealerCookie)).status).toBe(403);
+ const bypass=structuredClone(rules);bypass.closed.vdm="any";
+ expect((await api("list-settings","PUT",{rules:bypass})).status).toBe(400);
+ bypass.closed.vdm="paid";bypass.vf.vdm="unpaid";
+ expect((await api("list-settings","PUT",{rules:bypass})).status).toBe(400);
  const badRules=structuredClone(rules);badRules.paid.vdm="invalid";
  expect((await api("list-settings","PUT",{rules:badRules})).status).toBe(400);
  expect((await api("list-settings")).data.rules).toEqual(initial.data.rules);

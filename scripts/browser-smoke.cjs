@@ -340,6 +340,10 @@ const workbook = (rows) => {
   const stockWaiting = page.locator('#itemtable tbody tr').filter({hasText:'2BROWSER-CASH'});
   assert((await stockWaiting.innerText()).includes('Stokta'));
   assert((await stockWaiting.innerText()).includes('VF’den Ödeme Bekleniyor'));
+  assert((await stockWaiting.innerText()).includes('VDM’ye Ödendi'));
+  await page.evaluate(()=>{hiddenColumns.add('paid');draw();});
+  assert.equal(await page.locator('#filter-paid').count(),1);
+  await page.evaluate(()=>hiddenColumns.delete('paid'));
   await page.locator('#productViews button[data-bucket="paid"]').click();
   assert((await page.locator('#itemtable tbody').innerText()).includes('2BROWSER-CASH'));
   assert.equal(await page.locator('#filter-vf').count(),0);
@@ -401,6 +405,7 @@ const workbook = (rows) => {
   await nav("Ayarlar");
   await page.waitForSelector('[data-rule="paid"] [data-sale="cash"]');
   assert(await page.locator('[data-rule="paid"] [data-sale="cash"]').isChecked());
+  for(const key of ['vf','closed']){assert(await page.locator(`[data-rule="${key}"] [data-vdm-required]`).isChecked());assert(await page.locator(`[data-rule="${key}"] [data-vdm-required]`).isDisabled());}
   await page.locator('[data-rule="paid"] [data-sale="cash"]').uncheck();
   await page.getByRole('button',{name:'Toplu Kaydet',exact:true}).click();
   await page.waitForFunction(()=>listRulesMessage.textContent.includes('kaydedildi'));
