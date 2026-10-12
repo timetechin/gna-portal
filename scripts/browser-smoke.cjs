@@ -318,6 +318,25 @@ const workbook = (rows) => {
     assert.equal(actualVf.rows[0].source_row,2);
   }
 
+
+  const activationRouteWB=XLSX.utils.book_new();XLSX.utils.book_append_sheet(activationRouteWB,XLSX.utils.aoa_to_sheet([['Cihaz Satış Dönemi','Cihaz Satış Tarihi','Cihaz Satıcı','Cihaz Kaydı Yapan','Cihaz Kampanya Adı','Cihaz Tür','Cihaz Marka','Cihaz IMEI'],['202603',46090,'DEREBOYU SHOP','Test','GNA BAYI CIHAZ KAMPANYASI','AKSESUAR','Phone',200000400026239]]),'Data');
+  await nav('Excel Yükle');
+  await page.locator('#paymentfile').setInputFiles({name:'activation-in-payment.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:XLSX.write(activationRouteWB,{type:'buffer',bookType:'xlsx'})});
+  await page.getByRole('button',{name:'Vodafone Aktivasyonlarında Aç',exact:true}).waitFor();
+  await page.locator("button[onclick=\"uploadFile('payment')\"]").click();
+  await page.waitForFunction(()=>paymentmsg.textContent.includes('Bu dosya aktivasyon raporu'));
+  await page.getByRole('button',{name:'Vodafone Aktivasyonlarında Aç',exact:true}).click();
+  await page.waitForSelector('#activation-serial');
+  const route=await page.evaluate(row=>({serial:activationColumn(row,'serial',['Cihaz IMEI'],7),campaign:chosenCampaign(activationColumn(row,'campaign',['Cihaz Kampanya Adı'],4))}),{'Cihaz IMEI':200000400026239,'Cihaz Kampanya Adı':'GNA BAYI CIHAZ KAMPANYASI'});
+  assert.equal(String(route.serial),'200000400026239');assert.equal(route.campaign,'Peşin Satış');
+  if(process.env.GNA_ACTIVATION_SAMPLE){
+    await page.locator('#activationfile').setInputFiles(process.env.GNA_ACTIVATION_SAMPLE);
+    await page.waitForFunction(()=>document.querySelector('#activationSheet')?.value==='Data' && document.querySelector('#activation-serial'));
+    await page.evaluate(()=>previewActivation());
+    const sampleActualWB=XLSX.readFile(process.env.GNA_ACTIVATION_SAMPLE);const sampleActualRows=XLSX.utils.sheet_to_json(sampleActualWB.Sheets['Data'],{raw:true});
+    const parsedActual=await page.evaluate(rows=>rows.map(o=>({serial:String(activationColumn(o,'serial',['Cihaz IMEI'],7)),campaign:chosenCampaign(activationColumn(o,'campaign',['Cihaz Kampanya Adı'],4)),sold:activationColumn(o,'date',['Cihaz Satış Tarihi'],1)})).filter(x=>x.serial),sampleActualRows);
+    assert.equal(parsedActual.length,1);assert.deepEqual(parsedActual[0],{serial:'200000400026239',campaign:'Peşin Satış',sold:46090});
+  }
   await upload("payment", "browser-vdm.xlsx", [
     ["SeriNo"],
     ["2BROWSER-CASH"],
