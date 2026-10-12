@@ -81,6 +81,17 @@ await db.begin(async (tx) => {
     "CREATE INDEX IF NOT EXISTS gna_upload_effects_record_idx ON gna_upload_effects(entity,record_key,id)",
   );
 });
+const defaultListRules = {
+  active: {sales:["stock","cash","tariff","other"],vdm:"any",vf:"any",completed:false,showVodafone:true},
+  paid: {sales:["stock","cash"],vdm:"paid",vf:"any",completed:false,showVodafone:false},
+  vf: {sales:["stock"],vdm:"paid",vf:"unpaid",completed:false,showVodafone:true},
+  closed: {sales:["stock","cash","tariff","other"],vdm:"any",vf:"any",completed:true,showVodafone:true},
+};
+await run("CREATE TABLE IF NOT EXISTS gna_list_settings(id integer PRIMARY KEY CHECK(id=1),rules jsonb NOT NULL,updated_at timestamptz NOT NULL DEFAULT now())");
+function validListRules(value) {
+  if(!value || typeof value!=="object" || Array.isArray(value) || Object.keys(value).sort().join(",")!=="active,closed,paid,vf")return false;
+  return Object.values(value).every((r:any)=>r && Object.keys(r).sort().join(",")==="completed,sales,showVodafone,vdm,vf" && Array.isArray(r.sales) && r.sales.length<=4 && new Set(r.sales).size===r.sales.length && r.sales.every(x=>["stock","cash","tariff","other"].includes(x)) && ["any","paid","unpaid"].includes(r.vdm) && ["any","paid","unpaid"].includes(r.vf) && typeof r.completed==="boolean" && typeof r.showVodafone==="boolean");
+}
 if (!(await run("SELECT username FROM gna_users LIMIT 1")).length) {
   if (!secret) throw Error("Bootstrap password missing");
   const salt = crypto.randomUUID();
@@ -386,6 +397,17 @@ Bun.serve({
         });
       }
       if (path === "/api/me") return out(u);
+      if(path === "/api/list-settings" && req.method === "GET") {
+        const rows=await run("SELECT rules FROM gna_list_settings WHERE id=1");
+        return out({rules:rows[0]?.rules || defaultListRules,defaults:defaultListRules});
+      }
+      if(path === "/api/list-settings" && req.method === "PUT") {
+        if(u.role!=="admin")return bad("Yönetici yetkisi gerekli",403);
+        const b=await req.json();if(!validListRules(b.rules))return bad("Liste kuralları geçersiz",400);
+        await run("INSERT INTO gna_list_settings(id,rules) VALUES(1,$1::jsonb) ON CONFLICT(id) DO UPDATE SET rules=excluded.rules,updated_at=now()",[b.rules]);
+        return out({rules:b.rules,defaults:defaultListRules});
+      }
+
       if (path === "/api/imports" && req.method === "GET") {
         if (u.role !== "admin") return bad("Yönetici yetkisi gerekli", 403);
         return out(

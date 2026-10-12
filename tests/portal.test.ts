@@ -908,3 +908,19 @@ test("stock reuploads preserve legacy serial spelling and avoid duplicate produc
  expect((await api("uploads/"+refill.data.batch_id+"/undo","POST")).status).toBe(200);
  expect((await api("uploads/"+stock.data.batch_id+"/undo","POST")).status).toBe(200);
 });
+
+
+test("list rules persist for all users, restrict writes to admins, and reject invalid full updates",async()=>{
+ const initial=await api("list-settings");expect(initial.status).toBe(200);
+ expect(initial.data.rules.paid.sales).toEqual(["stock","cash"]);
+ expect(initial.data.rules.paid.showVodafone).toBe(false);
+ const rules=structuredClone(initial.data.rules);rules.paid.sales=["stock"];rules.vf.sales=["stock","tariff"];
+ expect((await api("list-settings","PUT",{rules},dealerCookie)).status).toBe(403);
+ const badRules=structuredClone(rules);badRules.paid.vdm="invalid";
+ expect((await api("list-settings","PUT",{rules:badRules})).status).toBe(400);
+ expect((await api("list-settings")).data.rules).toEqual(initial.data.rules);
+ expect((await api("list-settings","PUT",{rules})).status).toBe(200);
+ expect((await api("list-settings","GET",undefined,dealerCookie)).data.rules).toEqual(rules);
+ expect((await db.unsafe("SELECT rules FROM gna_list_settings WHERE id=1"))[0].rules).toEqual(rules);
+ expect((await api("list-settings","PUT",{rules:initial.data.defaults})).status).toBe(200);
+});

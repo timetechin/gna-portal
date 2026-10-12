@@ -372,10 +372,26 @@ const workbook = (rows) => {
   await openDealer("Girne Çarşı");
   await page.locator('#productViews button[data-bucket="paid"]').click();
   assert(
-    !(await page.locator("#itemtable tbody").innerText()).includes(
+    (await page.locator("#itemtable tbody").innerText()).includes(
       "2BROWSER-CASH",
     ),
   );
+  await nav("Ayarlar");
+  await page.waitForSelector('[data-rule="paid"] [data-sale="cash"]');
+  assert(await page.locator('[data-rule="paid"] [data-sale="cash"]').isChecked());
+  await page.locator('[data-rule="paid"] [data-sale="cash"]').uncheck();
+  await page.getByRole('button',{name:'Toplu Kaydet',exact:true}).click();
+  await page.waitForFunction(()=>listRulesMessage.textContent.includes('kaydedildi'));
+  await page.reload();await nav('Ayarlar');await page.waitForSelector('[data-rule="paid"]');
+  assert(!(await page.locator('[data-rule="paid"] [data-sale="cash"]').isChecked()));
+  await openDealer('Girne Çarşı');await page.locator('#productViews button[data-bucket="paid"]').click();
+  assert(!(await page.locator('#itemtable tbody').innerText()).includes('2BROWSER-CASH'));
+  await nav('Ayarlar');await page.waitForSelector('[data-rule="paid"]');
+  await page.getByRole('button',{name:'Varsayılanları forma getir',exact:true}).click();
+  await page.getByRole('button',{name:'Toplu Kaydet',exact:true}).click();
+  await page.waitForFunction(()=>listRulesMessage.textContent.includes('kaydedildi'));
+  await openDealer('Girne Çarşı');await page.locator('#productViews button[data-bucket="paid"]').click();
+  assert((await page.locator('#itemtable tbody').innerText()).includes('2BROWSER-CASH'));
   await page.locator('#productViews button[data-bucket="closed"]').click();
   assert(
     (await page.locator("#itemtable tbody").innerText()).includes(
