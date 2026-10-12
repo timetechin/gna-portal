@@ -56,6 +56,7 @@ await writeDb.begin(async (tx) => {
     "ALTER TABLE gna_items ADD COLUMN IF NOT EXISTS shipped text",
   );
   await tx.unsafe("ALTER TABLE gna_items ADD COLUMN IF NOT EXISTS sold text");
+  await tx.unsafe("ALTER TABLE gna_items ADD COLUMN IF NOT EXISTS cash_sale_price numeric(18,2)");
   await tx.unsafe(
     "CREATE TABLE IF NOT EXISTS gna_product_prices(product text PRIMARY KEY,purchase_price numeric(18,2),cash_sale_price numeric(18,2),tariff_profit numeric(18,2),updated_at timestamptz NOT NULL DEFAULT now())",
   );
@@ -146,6 +147,7 @@ const uploadKinds = [
   "payment",
   "vf_payment",
   "activation",
+  "sale_price",
   "customers",
 ];
 const uuidPattern =
@@ -202,7 +204,7 @@ async function effect(tx, id, entity, key, field, oldValue, newValue) {
       409,
     );
   await tx.unsafe(
-    "INSERT INTO gna_upload_effects(batch_id,entity,record_key,field,old_value,new_value) VALUES($1,$2,$3,$4,$5::jsonb,$6::jsonb)",
+    field==="cash_sale_price" ? "INSERT INTO gna_upload_effects(batch_id,entity,record_key,field,old_value,new_value) VALUES($1,$2,$3,$4,to_jsonb($5::numeric),to_jsonb($6::numeric))" : "INSERT INTO gna_upload_effects(batch_id,entity,record_key,field,old_value,new_value) VALUES($1,$2,$3,$4,$5::jsonb,$6::jsonb)",
     [id, entity, String(key), field, oldValue, newValue],
   );
 }
@@ -272,7 +274,7 @@ async function undoBatch(tx, u, id) {
         409,
       );
     const matches = await tx.unsafe(
-      `SELECT 1 FROM ${table} r JOIN gna_upload_effects e ON e.id=$2 WHERE r.${key}=$1 AND (CASE WHEN e.field='__created__' THEN to_jsonb(r) ELSE to_jsonb(r)->e.field END) IS NOT DISTINCT FROM e.new_value`,
+      `SELECT 1 FROM ${table} r JOIN gna_upload_effects e ON e.id=$2 WHERE r.${key}=$1 AND (CASE WHEN e.field='__created__' THEN (CASE WHEN NOT (e.new_value ? 'cash_sale_price') AND (to_jsonb(r)->'cash_sale_price' IS NULL OR to_jsonb(r)->'cash_sale_price'='null'::jsonb) THEN to_jsonb(r)-'cash_sale_price' ELSE to_jsonb(r) END) ELSE to_jsonb(r)->e.field END) IS NOT DISTINCT FROM e.new_value`,
       [e.record_key, e.id],
     );
     if (!matches.length)
@@ -292,7 +294,7 @@ async function undoBatch(tx, u, id) {
     else {
       if (
         e.entity !== "item" ||
-        !["paid_on", "vf_paid_on", "campaign", "shipped", "sold"].includes(
+        !["paid_on", "vf_paid_on", "campaign", "shipped", "sold", "cash_sale_price"].includes(
           e.field,
         )
       )
@@ -449,8 +451,8 @@ Bun.serve({
           )
         ).map((r) => r.month_key);
         const rows = await run(
-          `SELECT i.id,i.shop,i.product,i.serial,i.campaign,i.sold,i.shipped,round(coalesce(p.purchase_price,i.price),2) purchase_price,p.cash_sale_price,p.tariff_profit,
-       CASE WHEN i.campaign='Peşin Satış' AND p.cash_sale_price IS NOT NULL AND coalesce(p.purchase_price,i.price) IS NOT NULL THEN round(p.cash_sale_price-coalesce(p.purchase_price,i.price),2) WHEN i.campaign='Tarifeye Ek' THEN p.tariff_profit ELSE NULL END profit
+          `SELECT i.id,i.shop,i.product,i.serial,i.campaign,i.sold,i.shipped,round(i.price,2) purchase_price,coalesce(i.cash_sale_price,p.cash_sale_price) cash_sale_price,p.tariff_profit,
+       CASE WHEN i.campaign='Peşin Satış' AND coalesce(i.cash_sale_price,p.cash_sale_price) IS NOT NULL AND i.price IS NOT NULL THEN round(coalesce(i.cash_sale_price,p.cash_sale_price)-i.price,2) WHEN i.campaign='Tarifeye Ek' THEN p.tariff_profit ELSE NULL END profit
        FROM gna_items i LEFT JOIN gna_product_prices p ON p.product=i.product WHERE i.shop=$1 AND i.campaign IN ('Tarifeye Ek','Peşin Satış') AND ($2='' OR left(i.sold,7)=$2) ORDER BY i.sold DESC NULLS LAST,i.id DESC`,
           [shop, month],
         );
@@ -1073,7 +1075,7 @@ Bun.serve({
       if (path === "/api/import" && req.method === "POST") {
         const b = await req.json();
         if (
-          !["stock", "payment", "vf_payment", "activation"].includes(b.kind) ||
+          !["stock", "payment", "vf_payment", "activation", "sale_price"].includes(b.kind) ||
           !Array.isArray(b.rows) ||
           !b.rows.length ||
           b.rows.length > 10000 ||
@@ -1085,6 +1087,7 @@ Bun.serve({
           b.rows.some((x) => !x.shop || !Number.isFinite(Number(x.price)))
         )
           return bad("Bayi veya fiyat eksik; dosya işlenmedi");
+        if(b.kind==="sale_price" && b.rows.some(x=>typeof x.cash_sale_price!=="number" || !Number.isFinite(x.cash_sale_price) || x.cash_sale_price<0 || x.cash_sale_price>1e9))return bad("Satış fiyatları geçerli sayılar olmalı");
         const result = await writeDb.begin(async (tx) => {
           const batch = await getBatch(tx, u, b, b.kind);
           let added = 0,
@@ -1202,6 +1205,14 @@ Bun.serve({
                 continue;
               }
               const row = matches[0];
+              if(b.kind==="sale_price"){
+                if(x.product && x.product!==row.product){report(serial,"Ürün adı kayıtla uyuşmuyor");skipped++;continue;}
+                const value=Math.round(x.cash_sale_price*100)/100;
+                if(row.cash_sale_price===null || Number(row.cash_sale_price)!==value){
+                  await tx.unsafe("UPDATE gna_items SET cash_sale_price=$1 WHERE id=$2",[value,row.id]);
+                  await effect(tx,batch.id,"item",row.id,"cash_sale_price",row.cash_sale_price===null?null:Number(row.cash_sale_price),value);changed=true;
+                }
+              }
               if (b.kind === "payment" && !row.paid_on) {
                 const value = importDate(x.paid_on) || "Ödendi";
                 await tx.unsafe("UPDATE gna_items SET paid_on=$1 WHERE id=$2", [

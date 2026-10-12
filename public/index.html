@@ -1083,8 +1083,8 @@
         filtered.sort(
           (a, b) =>
             sortDirection *
-            (sortField === "price"
-              ? Number(a.price) - Number(b.price)
+            (["price","salePrice"].includes(sortField)
+              ? Number(a[sortField==="price"?"price":"cash_sale_price"]) - Number(b[sortField==="price"?"price":"cash_sale_price"])
               : String(c.sort ? c.sort(a) : c.value(a)).localeCompare(
                   String(c.sort ? c.sort(b) : c.value(b)),
                   "tr",
@@ -1204,6 +1204,7 @@
                   payment: "VDM’ye Ödenenler",
                   vf_payment: "VF’den Ödenenler",
                   customers: "Müşteri Kartları",
+                  sale_price: "Seri Satış Fiyatları",
                 }[r.kind] || r.kind,
               ) +
               "</td><td>" +
@@ -1437,7 +1438,8 @@
       { key: "shop", label: "Bayi", value: (x) => shopName(x.shop) },
       { key: "product", label: "Ürün", value: (x) => String(x.product || "—") },
       { key: "serial", label: "Seri", value: (x) => String(x.serial) },
-      { key: "price", label: "Fiyat", value: (x) => money(x.price) },
+      { key: "price", label: "Alış Fiyatı", value: (x) => money(x.price) },
+      { key: "salePrice", label: "Peşin Satış Fiyatı", value: x=>x.cash_sale_price===null?"—":money(x.cash_sale_price) },
       {
         key: "shipped",
         label: "Alım Tarihi",
@@ -1639,7 +1641,7 @@
       try {
         prices = await api("prices");
         pricingContent.innerHTML =
-          '<p>Peşin kâr = satış fiyatı − alış fiyatı. Tarifeye ek kâr, buraya girilen birim tutardır. Alış fiyatı boşsa her seri için Excel’den kayıtlı fiyat kullanılır. Güncel liste raporun tüm aylarına uygulanır.</p><button class="btn" onclick="saveAllPrices(this)">Toplu Kaydet</button><input id="priceSearch" placeholder="Ürün ara" oninput="renderPrices()"><p id="priceMessage" role="status"></p><div class="scroll" id="priceRows"></div>';
+          '<p>Peşin kâr = satış fiyatı − alış fiyatı. Tarifeye ek kâr, buraya girilen birim tutardır. Alış maliyeti her zaman serinin kayıtlı alış fiyatıdır; listedeki alış fiyatı eski serilerin maliyetini değiştirmez. Seri için satış fiyatı varsa o kullanılır, yoksa listedeki satış fiyatı kullanılır.</p><button class="btn" onclick="saveAllPrices(this)">Toplu Kaydet</button><input id="priceSearch" placeholder="Ürün ara" oninput="renderPrices()"><p id="priceMessage" role="status"></p><div class="scroll" id="priceRows"></div>';
         renderPrices();
       } catch (err) {
         pricingContent.textContent = err.message;

@@ -465,7 +465,7 @@ const workbook = (rows) => {
   await page.getByRole("button", { name: "Kârlılık", exact: true }).click();
   await page.locator("#profitMonth").selectOption("2026-10");
   await page.waitForFunction(() =>
-    document.querySelector("#profitContent").textContent.includes("140,00"),
+    document.querySelector("#profitContent").textContent.includes("124,00"),
   );
   assert(
     (await page.locator("#profitContent").innerText()).includes(

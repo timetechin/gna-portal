@@ -39,3 +39,5 @@ Ayarlar → Liste Kuralları: yönetici dört ürün listesinin satış türü, 
 Yükleme/geri alma işlemleri tek bağlantılı ayrı yazma havuzunda yürür. Giriş ve okuma havuzu bu işlemlerin kilit kuyruğundan etkilenmez. Yükleme kilitlerinde 15 saniye bekleme sınırı uygulanır; zaman aşımında işlem parçası transaction ile geri alınır.
 
 Excel sayfa adları baştaki/sondaki boşluklarıyla aynen korunur. VF ödeme dosyasındaki GNA Fatura sayfasında 1.881 seri, gerçek dosyayla tarayıcıda D sütunundan okunarak doğrulanır (GNA_VF_PAYMENT_SAMPLE). Örnek dosya Git’e eklenmez.
+
+Seri satış fiyatları: gna_items.cash_sale_price nullable alanı satış fiyatını alış maliyetinden ayrı saklar. sale_price yüklemeleri seri+baying kaydına eşleşir, yalnızca bu alanı günceller ve dosya geçmişinden geri alınabilir. Peşin kâr = seriye ait satış fiyatı (yoksa listedeki satış fiyatı) − her zaman serinin tarihsel price maliyeti. Fiyatlama Listesi’ndeki purchase_price artık geçmiş seri maliyetinin yerine geçmez. Eski yüklemelerin yeni alanı içermeyen stok snapshotları, seri satış fiyatı boş kaldığı sürece geri alınabilir.

@@ -69,7 +69,7 @@ beforeAll(async () => {
   originalItems = JSON.parse(
     JSON.stringify(await db.unsafe("SELECT * FROM gna_items ORDER BY id")),
   );
-  originalItems = originalItems.map((row) => ({ ...row, vf_paid_on: null }));
+  originalItems = originalItems.map((row) => ({ ...row, vf_paid_on: null, cash_sale_price: null }));
   server = Bun.spawn([process.execPath, "src/server.ts"], {
     env: {
       ...Bun.env,
@@ -940,4 +940,27 @@ test("queued upload and undo locks cannot starve login or health connections",as
   const r=await fetch(base+"/health",{signal:AbortSignal.timeout(2000)});expect(r.status).toBe(200);
   const login=await fetch(base+"/api/login",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({username:"admin",password:"test-password-123"}),signal:AbortSignal.timeout(2000)});expect(login.status).toBe(200);
  }finally{release();await blocker;const results=await Promise.all(jobs);expect(results.every(r=>r.status===404)).toBe(true);}
+});
+
+
+test("serial sale price imports preserve historical costs and override only the serial sale price, with undo",async()=>{
+ const stock=(await api("import","POST",{kind:"stock",rows:[{serial:"COST-OLD",shop:"Cost Shop",product:"Cost Phone",price:100},{serial:"COST-NEW",shop:"Cost Shop",product:"Cost Phone",price:150}]})).data.batch_id;
+ const act=(await api("import","POST",{kind:"activation",rows:[{serial:"COST-OLD",campaign:"Peşin Satış",sold:"2026-07-01"},{serial:"COST-NEW",campaign:"Peşin Satış",sold:"2026-07-01"}]})).data.batch_id;
+ await api("prices","PUT",{product:"Cost Phone",purchase_price:999,cash_sale_price:300,tariff_profit:20});
+ const beforePrices=(await api("prices")).data;
+ expect((await api("import","POST",{kind:"sale_price",rows:[{serial:"COST-OLD",cash_sale_price:250}]},dealerCookie)).status).toBe(403);
+ expect((await api("import","POST",{kind:"sale_price",rows:[{serial:"COST-OLD",cash_sale_price:-1}]})).status).toBe(400);
+ const update=await api("import","POST",{kind:"sale_price",rows:[{serial:"COST-OLD",product:"Cost Phone",cash_sale_price:250},{serial:"COST-NEW",product:"Cost Phone",cash_sale_price:250}]});expect(update.data.added).toBe(2);
+ let report=(await api("profitability?shop=Cost%20Shop&month=2026-07")).data;expect(report.totals.profit_total).toBe("250.00");
+ expect(report.rows.find(x=>x.serial==="COST-OLD").purchase_price).toBe("100.00");expect(report.rows.find(x=>x.serial==="COST-NEW").purchase_price).toBe("150.00");
+ expect((await api("prices")).data).toEqual(beforePrices);
+ expect((await api("uploads/"+update.data.batch_id+"/undo","POST")).status).toBe(200);
+ report=(await api("profitability?shop=Cost%20Shop&month=2026-07")).data;expect(report.totals.profit_total).toBe("350.00");
+ await api("uploads/"+act+"/undo","POST");expect((await api("uploads/"+stock+"/undo","POST")).status).toBe(200);
+});
+
+test("stock undo remains compatible with snapshots from before serial sale prices existed",async()=>{
+ const stock=(await api("import","POST",{kind:"stock",rows:[{serial:"OLD-SNAPSHOT",shop:"Snapshot Shop",product:"Old Snapshot Phone",price:10}]})).data.batch_id;
+ await db.unsafe("UPDATE gna_upload_effects SET new_value=new_value-'cash_sale_price' WHERE batch_id=$1 AND field='__created__'",[stock]);
+ expect((await api("uploads/"+stock+"/undo","POST")).status).toBe(200);
 });
