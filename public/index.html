@@ -1139,8 +1139,17 @@
         .replace(/[\u0300-\u036f]/g, "")
         .replace(/[^a-z0-9]/g, "");
     const pick = (o, n, i) => {
-      let k = Object.keys(o).find((k) => n.some((x) => norm(x) === norm(k)));
-      return k ? o[k] : i === undefined ? "" : Object.values(o)[i];
+      const keys = Object.keys(o);
+      let k;
+      for (const name of n) {
+        k = keys.find((key) => norm(key) === norm(name));
+        if (k !== undefined) break;
+      }
+      return k !== undefined
+        ? o[k]
+        : i === undefined
+          ? ""
+          : Object.values(o)[i];
     };
     const str = (x) => String(x ?? "").trim();
     const dt = (x) =>
@@ -1415,7 +1424,9 @@
     ];
     function renderProductTable(rows) {
       const context = items.filter((x) => contextShops().includes(x.shop));
-      const filterSource=context.filter(x=>productBucket==='vf'?vfWaiting(x):itemState(x)===productBucket);
+      const filterSource = context.filter((x) =>
+        productBucket === "vf" ? vfWaiting(x) : itemState(x) === productBucket,
+      );
       productViews.innerHTML =
         [
           [

@@ -13,11 +13,15 @@ if (
   parsed.pathname != "/gna_test"
 )
   throw Error("Browser checks require the isolated loopback gna_test database");
-const server = spawn(process.env.BUN_EXECUTABLE || "bun", [process.env.GNA_BROWSER_SERVER||"src/server.ts"], {
-  cwd: path.resolve(__dirname, ".."),
-  env: { ...process.env, DATABASE_URL: connection, PORT: "3303" },
-  stdio: "inherit",
-});
+const server = spawn(
+  process.env.BUN_EXECUTABLE || "bun",
+  [process.env.GNA_BROWSER_SERVER || "src/server.ts"],
+  {
+    cwd: path.resolve(__dirname, ".."),
+    env: { ...process.env, DATABASE_URL: connection, PORT: "3303" },
+    stdio: "inherit",
+  },
+);
 let browser;
 process.on("exit", () => server.kill());
 const workbook = (rows) => {
@@ -261,7 +265,7 @@ const workbook = (rows) => {
   );
   await upload("activation", "browser-activation.xlsx", [
     [
-      "A",
+      "SeriNo",
       "Aktivasyon Tarihi",
       "Bayi Adı",
       "D",
@@ -271,7 +275,7 @@ const workbook = (rows) => {
       "Cihaz IMEI",
     ],
     [
-      "",
+      "NOT-H-SERIAL",
       "14.10.2026",
       "Girne Çarşı",
       "",
@@ -281,7 +285,7 @@ const workbook = (rows) => {
       "2BROWSER-CASH",
     ],
     [
-      "",
+      "NOT-H-SERIAL",
       "14.10.2026",
       "Yenikent",
       "",
