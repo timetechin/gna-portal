@@ -1,5 +1,7 @@
 import { SQL } from "bun";
 const db = new SQL(Bun.env.DATABASE_URL, { max: 4 });
+// Serialised writes must not occupy the connections used for login and reads.
+const writeDb = new SQL(Bun.env.DATABASE_URL, { max: 1 });
 const run = (q, p = []) => db.unsafe(q, p);
 const digest = async (p) =>
   Buffer.from(
@@ -28,7 +30,7 @@ await run(
   "CREATE TABLE IF NOT EXISTS gna_upload_history(id bigserial primary key,kind text,filename text,created_at timestamptz default now())",
 );
 // Additive migration: existing GNA rows and identities remain unchanged.
-await db.begin(async (tx) => {
+await writeDb.begin(async (tx) => {
   await tx.unsafe(
     "ALTER TABLE gna_items ADD COLUMN IF NOT EXISTS vf_paid_on text",
   );
@@ -154,6 +156,7 @@ class UserError extends Error {
   }
 }
 async function uploadLock(tx) {
+  await tx.unsafe("SET LOCAL lock_timeout = '15s'");
   await tx.unsafe("SELECT pg_advisory_xact_lock(719263001)");
 }
 async function getBatch(tx, u, b, kind) {
@@ -570,7 +573,7 @@ Bun.serve({
           name = clean(b.name);
         if (!name || String(b.name).trim().length > 200)
           return bad("Ana cari adı gerekli (en fazla 200 karakter)");
-        const a = await db.begin(async (tx) => {
+        const a = await writeDb.begin(async (tx) => {
           const rows = await tx.unsafe(
             "INSERT INTO gna_main_accounts(name) VALUES($1) ON CONFLICT DO NOTHING RETURNING id,name",
             [name],
@@ -590,7 +593,7 @@ Bun.serve({
           (id !== null && !/^[1-9][0-9]*$/.test(String(id)))
         )
           return bad("Geçerli bayi ve ana cari seçin");
-        const result = await db.begin(async (tx) => {
+        const result = await writeDb.begin(async (tx) => {
           await tx.unsafe("SELECT pg_advisory_xact_lock(hashtext($1))", [shop]);
           if (
             !(
@@ -671,7 +674,7 @@ Bun.serve({
           return bad(
             "MusteriKod, MusteriKisaAd ve MusteriUnvan alanları gerekli; kodlar metin olmalı",
           );
-        const result = await db.begin(async (tx) => {
+        const result = await writeDb.begin(async (tx) => {
           const batch = await getBatch(tx, u, b, "customers");
           let added = 0,
             skipped = 0;
@@ -744,7 +747,7 @@ Bun.serve({
           for(const key of ["purchase_price","cash_sale_price","tariff_profit"])
             if(row[key]!==null&&(typeof row[key]!=="number"||!Number.isFinite(row[key])||Math.abs(row[key])>1e9||(key!=="tariff_profit"&&row[key]<0)))return bad("Fiyatlar sayısal olmalı; eksik fiyat için boş bırakın");
         }
-        await db.begin(async tx=>{
+        await writeDb.begin(async tx=>{
           await tx.unsafe("SELECT pg_advisory_xact_lock(719263003)");
           for(const row of rows)await tx.unsafe("INSERT INTO gna_product_prices(product,purchase_price,cash_sale_price,tariff_profit) VALUES($1,$2,$3,$4) ON CONFLICT(product) DO UPDATE SET purchase_price=EXCLUDED.purchase_price,cash_sale_price=EXCLUDED.cash_sale_price,tariff_profit=EXCLUDED.tariff_profit,updated_at=now()",[row.product.trim(),row.purchase_price,row.cash_sale_price,row.tariff_profit]);
           await audit(tx,u,"prices.bulk",{products:[...names],count:rows.length});
@@ -753,7 +756,7 @@ Bun.serve({
       const itemAction=path.match(/^\/api\/items\/(\d+)$/);
       if(itemAction&&["PATCH","DELETE"].includes(req.method)){
         const b=req.method==="PATCH"?await req.json():null;
-        const result=await db.begin(async tx=>{
+        const result=await writeDb.begin(async tx=>{
           await uploadLock(tx);
           const [old]=await tx.unsafe("SELECT * FROM gna_items WHERE id=$1 FOR UPDATE",[itemAction[1]]);
           if(!old)throw new UserError("Ürün bulunamadı",404);
@@ -788,7 +791,7 @@ Bun.serve({
               (key !== "tariff_profit" && b[key] < 0))
           )
             return bad("Fiyatlar sayısal olmalı; eksik fiyat için boş bırakın");
-        await db.begin(async (tx) => {
+        await writeDb.begin(async (tx) => {
           await tx.unsafe("SELECT pg_advisory_xact_lock(719263003)");
           const old =
             (
@@ -828,7 +831,7 @@ Bun.serve({
           typeof b.active !== "boolean"
         )
           return bad("Ana cari adı ve açık/kapalı durumu gerekli");
-        const result = await db.begin(async (tx) => {
+        const result = await writeDb.begin(async (tx) => {
           await tx.unsafe("SELECT pg_advisory_xact_lock(719263002)");
           const old = (
             await tx.unsafe(
@@ -873,7 +876,7 @@ Bun.serve({
           typeof b.active !== "boolean"
         )
           return bad("Bayi kimliği, adı ve açık/kapalı durumu gerekli");
-        const result = await db.begin(async (tx) => {
+        const result = await writeDb.begin(async (tx) => {
           await tx.unsafe("SELECT pg_advisory_xact_lock(719263002)");
           const shop = b.shop.trim(),
             name = b.display_name.trim();
@@ -924,7 +927,7 @@ Bun.serve({
           b.title.trim().length > 500
         )
           return bad("Müşteri kodu, kısa adı ve ünvanı gerekli");
-        const r = await db.begin(async (tx) => {
+        const r = await writeDb.begin(async (tx) => {
           await uploadLock(tx);
           const rows = await tx.unsafe(
             "INSERT INTO gna_customers(code,short_name,title) VALUES($1,$2,$3) ON CONFLICT DO NOTHING RETURNING code",
@@ -950,7 +953,7 @@ Bun.serve({
           typeof b.active !== "boolean"
         )
           return bad("Müşteri adı, ünvanı ve durumu gerekli");
-        const r = await db.begin(async (tx) => {
+        const r = await writeDb.begin(async (tx) => {
           await uploadLock(tx);
           const old = (
             await tx.unsafe(
@@ -1004,7 +1007,7 @@ Bun.serve({
             409,
           );
         return out(
-          await db.begin(async (tx) => {
+          await writeDb.begin(async (tx) => {
             await uploadLock(tx);
             if (uploadAction[2] === "undo") return await undoBatch(tx, u, id);
             await completeBatch(tx, u, id);
@@ -1025,7 +1028,7 @@ Bun.serve({
         const b=await req.json(), old=clean(b.original_username), name=clean(b.username), shop=clean(b.shop), role=b.role;
         if (!old || !name || !shop || !["dealer","admin"].includes(role)) return bad("Kullanıcı, bayi ve geçerli yetki gerekli");
         if (b.password && (typeof b.password!=="string" || b.password.length<12)) return bad("Yeni şifre en az 12 karakter olmalı");
-        const result=await db.begin(async tx=>{
+        const result=await writeDb.begin(async tx=>{
           await tx.unsafe("SELECT pg_advisory_xact_lock(719263004)");
           const [target]=await tx.unsafe("SELECT * FROM gna_users WHERE username=$1 FOR UPDATE",[old]);
           if (!target) throw new UserError("Kullanıcı bulunamadı",404);
@@ -1080,7 +1083,7 @@ Bun.serve({
           b.rows.some((x) => !x.shop || !Number.isFinite(Number(x.price)))
         )
           return bad("Bayi veya fiyat eksik; dosya işlenmedi");
-        const result = await db.begin(async (tx) => {
+        const result = await writeDb.begin(async (tx) => {
           const batch = await getBatch(tx, u, b, b.kind);
           let added = 0,
             skipped = 0;

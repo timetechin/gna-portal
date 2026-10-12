@@ -924,3 +924,16 @@ test("list rules persist for all users, restrict writes to admins, and reject in
  expect((await db.unsafe("SELECT rules FROM gna_list_settings WHERE id=1"))[0].rules).toEqual(rules);
  expect((await api("list-settings","PUT",{rules:initial.data.defaults})).status).toBe(200);
 });
+
+
+test("queued upload and undo locks cannot starve login or health connections",async()=>{
+ let release,locked;const ready=new Promise(resolve=>locked=resolve);const gate=new Promise(resolve=>release=resolve);
+ const blocker=db.begin(async tx=>{await tx.unsafe("SELECT pg_advisory_xact_lock(719263001)");locked();await gate;});
+ await ready;
+ const jobs=Array.from({length:4},()=>api("import","POST",{kind:"payment",batch_id:"00000000-0000-4000-8000-000000000000",rows:[{serial:"MISSING-CONCURRENCY"}]}));
+ try{
+  await Bun.sleep(150);
+  const r=await fetch(base+"/health",{signal:AbortSignal.timeout(2000)});expect(r.status).toBe(200);
+  const login=await fetch(base+"/api/login",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({username:"admin",password:"test-password-123"}),signal:AbortSignal.timeout(2000)});expect(login.status).toBe(200);
+ }finally{release();await blocker;const results=await Promise.all(jobs);expect(results.every(r=>r.status===404)).toBe(true);}
+});
