@@ -2,6 +2,18 @@
   "name": "gna-portal",
   "private": true,
   "version": "1.0.0",
-  "scripts": { "start": "bun src/server.ts", "dev": "bun --hot src/server.ts", "test": "bun test", "railway:bundle": "bun scripts/railway-bundle.ts" },
-  "engines": { "bun": ">=1.4.0" }
+  "scripts": {
+    "start": "bun src/server.ts",
+    "dev": "bun --hot src/server.ts",
+    "test": "bun test",
+    "railway:bundle": "bun scripts/railway-bundle.ts",
+    "test:browser": "node scripts/browser-smoke.cjs"
+  },
+  "engines": {
+    "bun": ">=1.4.0"
+  },
+  "devDependencies": {
+    "playwright": "1.61.1",
+    "xlsx": "0.18.5"
+  }
 }
