@@ -296,6 +296,17 @@ const workbook = (rows) => {
     const sampleItems=(await read("items")).filter(x=>x.shop==="Payment Sample Fixture");assert.equal(sampleItems.length,798);assert(sampleItems.every(x=>!x.paid_on));
     await page.evaluate(async id=>{const r=await fetch("/api/uploads/"+id+"/undo",{method:"POST"});if(!r.ok)throw Error("Sample fixture undo failed");},seed.batch_id);
   }
+  await nav('Excel Yükle');
+  const wideWB=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wideWB,XLSX.utils.aoa_to_sheet([['Ödeme listesi'],[],['Bayi'],['Girne Çarşı','','','','','','','2BROWSER-CASH']]),'VF Ödemeleri');
+  await page.locator('#vf_paymentfile').setInputFiles({name:'vf-wide-columns.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:XLSX.write(wideWB,{type:'buffer',bookType:'xlsx'})});
+  await page.waitForSelector('#vf_paymentSerial');
+  assert(await page.locator('#vf_paymentCriteria').evaluate(el=>el.open));
+  assert.equal(await page.locator('#vf_paymentSerial option').count(),8);
+  await page.locator('#vf_paymentNoHeader').check();await page.locator('#vf_paymentHeader').fill('4');await page.locator('#vf_paymentHeader').dispatchEvent('change');
+  await page.locator('#vf_paymentSerial').selectOption('7');
+  assert((await page.locator('#vf_paymentDetected').innerText()).includes('Seri sütunu: H'));
+  assert((await page.locator('#vf_paymentDetected').innerText()).includes('2BROWSER-CASH'));
+  const vfParsed=await page.evaluate(()=>readPaymentRows('vf_payment'));assert.equal(vfParsed.rows[0].serial,'2BROWSER-CASH');
   await upload("payment", "browser-vdm.xlsx", [
     ["SeriNo"],
     ["2BROWSER-CASH"],
