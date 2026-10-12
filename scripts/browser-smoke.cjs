@@ -314,6 +314,12 @@ const workbook = (rows) => {
       "2BROWSER-CASH",
     ),
   );
+  await page.locator('#productViews button[data-bucket="vf"]').click();
+  const stockWaiting = page.locator('#itemtable tbody tr').filter({hasText:'2BROWSER-CASH'});
+  assert((await stockWaiting.innerText()).includes('Stokta'));
+  assert((await stockWaiting.innerText()).includes('VF’den Ödeme Bekleniyor'));
+  await page.locator('#productViews button[data-bucket="paid"]').click();
+  assert((await page.locator('#itemtable tbody').innerText()).includes('2BROWSER-CASH'));
   await upload("activation", "browser-activation.xlsx", [
     [
       "SeriNo",

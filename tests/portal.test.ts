@@ -464,6 +464,11 @@ test("VDM then tariff activation then VF payment preserves serial history and pe
   ).data.batch_id;
   let row = (await api("items")).data.find((x) => x.serial === "PIPE");
   expect(row.paid_on).toBe("Ödendi");
+  const stockVf = await api("import", "POST", {kind:"vf_payment", rows:[{serial:"PIPE",paid_on:"2026-10-14"}]});
+  expect(stockVf.data.added).toBe(1);
+  expect((await api("items")).data.find(x=>x.serial==="PIPE").vf_paid_on).toBe("2026-10-14");
+  expect((await api("uploads/"+stockVf.data.batch_id+"/undo","POST")).status).toBe(200);
+  expect((await api("items")).data.find(x=>x.serial==="PIPE").vf_paid_on).toBeNull();
   const activation = (
     await api("import", "POST", {
       kind: "activation",

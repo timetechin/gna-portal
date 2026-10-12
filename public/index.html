@@ -1049,12 +1049,7 @@
             (!productfilter.value || x.product === productfilter.value) &&
             (!vodfilter.value ||
               (vodfilter.value === "waiting"
-                ? !!x.paid_on && x.campaign === "Tarifeye Ek" && !x.vf_paid_on
-                : !(
-                    x.paid_on &&
-                    x.campaign === "Tarifeye Ek" &&
-                    !x.vf_paid_on
-                  ))) &&
+                ? vfWaiting(x) : !vfWaiting(x))) &&
             (!salefilter.value ||
               (x.campaign || "Stokta") === salefilter.value) &&
             (!payfilter.value ||
@@ -1085,7 +1080,7 @@
         );
       }
       let v = items.filter(
-        (x) => x.paid_on && x.campaign === "Tarifeye Ek" && !x.vf_paid_on,
+        vfWaiting,
       );
       summary.innerHTML =
         "<h3>Toplam ürün: " +
@@ -1403,11 +1398,11 @@
     function itemState(x) {
       if (!x.paid_on) return "active";
       if (x.campaign === "Peşin Satış" || x.vf_paid_on) return "closed";
-      if (vfWaiting(x)) return "vf";
+      if (x.campaign === "Tarifeye Ek" && vfWaiting(x)) return "vf";
       return "paid";
     }
     function vfWaiting(x) {
-      return !!x.paid_on && x.campaign === "Tarifeye Ek" && !x.vf_paid_on;
+      return !!x.paid_on && (!x.campaign || x.campaign === "Tarifeye Ek") && !x.vf_paid_on;
     }
     function vfStatus(x) {
       if (x.vf_paid_on) return "VF’den Ödendi";

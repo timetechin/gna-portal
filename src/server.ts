@@ -533,7 +533,7 @@ Bun.serve({
  coalesce(sum(i.price),0) AS product_total,
  coalesce(sum(i.price) FILTER(WHERE i.campaign IS NOT NULL),0) AS sales_total,
  coalesce(sum(i.price) FILTER(WHERE i.paid_on IS NOT NULL),0) AS payments_total,
- coalesce(sum(i.price) FILTER(WHERE i.paid_on IS NOT NULL AND i.campaign='Tarifeye Ek' AND i.vf_paid_on IS NULL),0) AS receivable_total,
+ coalesce(sum(i.price) FILTER(WHERE i.paid_on IS NOT NULL AND (coalesce(i.campaign,'')='' OR i.campaign='Tarifeye Ek') AND i.vf_paid_on IS NULL),0) AS receivable_total,
  (SELECT count(*)::int FROM gna_dealer_accounts d WHERE d.account_id=a.id) AS dealer_count
  FROM gna_main_accounts a LEFT JOIN gna_dealer_accounts d ON d.account_id=a.id LEFT JOIN gna_items i ON i.shop=d.shop GROUP BY a.id ORDER BY a.name`),
         );
@@ -1195,7 +1195,7 @@ Bun.serve({
               if (
                 b.kind === "vf_payment" &&
                 row.paid_on &&
-                row.campaign === "Tarifeye Ek" &&
+                (!row.campaign || row.campaign === "Tarifeye Ek") &&
                 !row.vf_paid_on
               ) {
                 const value = importDate(x.paid_on) || "Ödendi";
