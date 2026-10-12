@@ -1398,11 +1398,11 @@
     function itemState(x) {
       if (!x.paid_on) return "active";
       if (x.campaign === "Peşin Satış" || x.vf_paid_on) return "closed";
-      if (x.campaign === "Tarifeye Ek" && vfWaiting(x)) return "vf";
+      if (x.campaign === "Tarifeye Ek") return "tariff";
       return "paid";
     }
     function vfWaiting(x) {
-      return !!x.paid_on && (!x.campaign || x.campaign === "Tarifeye Ek") && !x.vf_paid_on;
+      return !!x.paid_on && !x.campaign && !x.vf_paid_on;
     }
     function vfStatus(x) {
       if (x.vf_paid_on) return "VF’den Ödendi";
@@ -1450,6 +1450,7 @@
       { key: "vf", label: "Vodafone", value: vfStatus },
       { key: "age", label: "Süre", value: x=>{const days=productAge(x);return days===null?"—":days>=45?"45 gün geçti":days+" gün";} },
     ];
+    function visibleProductColumns(){return productColumns.filter(c=>!hiddenColumns.has(c.key) && !(productBucket === "paid" && c.key === "vf"));}
     function renderProductTable(rows) {
       const context = items.filter((x) => contextShops().includes(x.shop) && matchesDate(x));
       const filterSource = context.filter((x) =>
@@ -1481,7 +1482,7 @@
           .join("") +
         `<button ${selectedDealer ? "" : "disabled"} onclick="openProfitability()">Kârlılık</button>`;
       visibleProductRows=rows;
-      const visibleColumns = productColumns.filter(c=>!hiddenColumns.has(c.key));
+      const visibleColumns = visibleProductColumns();
       const head = visibleColumns
         .map((c) => {
           const values = [...new Set(filterSource.map(c.value))].sort((a, b) =>
@@ -1754,7 +1755,7 @@
     function selectProduct(id,checked){checked?selectedProductIds.add(id):selectedProductIds.delete(id);updateSelectionCount();}
     function selectAllProducts(checked){visibleProductRows.forEach(x=>selectProduct(String(x.id),checked));itemtable.querySelectorAll('tbody input[type="checkbox"]').forEach(x=>x.checked=checked);}
     function updateSelectionCount(){selectionCount.textContent=visibleProductRows.filter(x=>selectedProductIds.has(String(x.id))).length+" seçili";}
-    function exportDealerProducts(){const selected=visibleProductRows.filter(x=>selectedProductIds.has(String(x.id))),rows=selected.length?selected:visibleProductRows;writeExcel("GNA-bayi-urunleri",productColumns.map(c=>c.label),rows.map(x=>productColumns.map(c=>c.key==="price"?Number(x.price):c.value(x))));}
+    function exportDealerProducts(){const selected=visibleProductRows.filter(x=>selectedProductIds.has(String(x.id))),rows=selected.length?selected:visibleProductRows;const columns=visibleProductColumns();writeExcel("GNA-bayi-urunleri",columns.map(c=>c.label),rows.map(x=>columns.map(c=>c.key==="price"?Number(x.price):c.value(x))));}
     function editProduct(id){const x=items.find(x=>String(x.id)===id);if(!x||me.role!=="admin")return;editItemId.value=id;editItemShop.value=x.shop;editItemSerial.value=x.serial;editItemProduct.value=x.product||"";editItemPrice.value=x.price;editItemShipped.value=x.shipped||"";editItemSold.value=x.sold||"";editItemCampaign.value=x.campaign||"";editItemPaid.checked=!!x.paid_on;editItemVF.checked=!!x.vf_paid_on;itemEditMessage.textContent="";itemEditor.showModal();}
     async function refreshProductList(){const context={dealer:selectedDealer,group:selectedGroup,all:homeAll};await refresh();selectedDealer=context.dealer;selectedGroup=context.group;homeAll=context.all;showProducts();draw();}
     async function saveProductEdit(){try{await api("items/"+editItemId.value,"PATCH",{shop:editItemShop.value,serial:editItemSerial.value,product:editItemProduct.value,price:Number(editItemPrice.value),shipped:editItemShipped.value,sold:editItemSold.value,campaign:editItemCampaign.value,paid:editItemPaid.checked,vf_paid:editItemVF.checked});itemEditor.close();await refreshProductList();}catch(err){itemEditMessage.textContent=err.message;}}

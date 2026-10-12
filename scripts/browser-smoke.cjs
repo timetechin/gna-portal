@@ -129,7 +129,7 @@ const workbook = (rows) => {
     .click();
   assert.equal(await page.locator("#groupDealerRows .dealer-card").count(), 1);
   await page.locator("#groupDealerRows .dealer-card").click();
-  await page.locator('#productViews button[data-bucket="vf"]').click();
+  await page.locator('#productViews button[data-bucket="active"]').click();
   assert((await page.locator("#itemtable tbody").innerText()).includes("G1"));
   assert(
     !(await page.locator("#itemtable tbody").innerText()).includes("Yenikent"),
@@ -320,6 +320,10 @@ const workbook = (rows) => {
   assert((await stockWaiting.innerText()).includes('VF’den Ödeme Bekleniyor'));
   await page.locator('#productViews button[data-bucket="paid"]').click();
   assert((await page.locator('#itemtable tbody').innerText()).includes('2BROWSER-CASH'));
+  assert.equal(await page.locator('#filter-vf').count(),0);
+  const [paidExport]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:'Excel’e Aktar',exact:true}).click()]);
+  const paidExportBook=XLSX.readFile(await paidExport.path());
+  assert(!XLSX.utils.sheet_to_json(paidExportBook.Sheets[paidExportBook.SheetNames[0]],{header:1})[0].includes('Vodafone'));
   await upload("activation", "browser-activation.xlsx", [
     [
       "SeriNo",
@@ -383,17 +387,9 @@ const workbook = (rows) => {
   await page.locator('#productViews button[data-bucket="paid"]').click();
   assert(!(await page.locator('#itemtable tbody').innerText()).includes('2BROWSER-TARIFF'));
   await page.locator('#productViews button[data-bucket="vf"]').click();
-  assert(
-    (await page.locator("#itemtable tbody").innerText()).includes(
-      "2BROWSER-TARIFF",
-    ),
-  );
-  assert(
-    (await page.locator("#itemtable tbody").innerText()).includes(
-      "VF’den Ödeme Bekleniyor",
-    ),
-  );
-  assert((await page.locator("#itemtable tr.tariff-row .tariff-badge").count())>0);
+  assert(!(await page.locator('#itemtable tbody').innerText()).includes('2BROWSER-TARIFF'));
+  await page.locator('#productViews button[data-bucket="active"]').click();
+  assert((await page.locator('#itemtable tr.tariff-row .tariff-badge').count())>0);
   await nav("Fiyatlama Listesi");
   const priceRow = page.locator('#priceRows tr[data-product="Browser Phone"]');
   await priceRow.locator(".price-purchase").fill("100");
@@ -430,7 +426,7 @@ const workbook = (rows) => {
   await openDealer("Yenikent");
   await page.locator('#productViews button[data-bucket="vf"]').click();
   assert(
-    (await page.locator("#itemtable tbody").innerText()).includes(
+    !(await page.locator("#itemtable tbody").innerText()).includes(
       "2BROWSER-TARIFF",
     ),
   );
