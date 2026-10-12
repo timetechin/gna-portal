@@ -1045,7 +1045,7 @@
         filtered = items.filter(
           (x) =>
             contextShops().includes(x.shop) && matchesDate(x) &&
-            (productBucket === "vf" ? vfWaiting(x) : productBucket === "consignment" ? !x.campaign : productBucket === "cash" ? x.campaign === "Peşin Satış" : productBucket === "tariff" ? x.campaign === "Tarifeye Ek" : itemState(x) === productBucket) &&
+            (inProductBucket(x, productBucket)) &&
             (!productfilter.value || x.product === productfilter.value) &&
             (!vodfilter.value ||
               (vodfilter.value === "waiting"
@@ -1403,20 +1403,25 @@
     function itemState(x) {
       if (!x.paid_on) return "active";
       if (x.campaign === "Peşin Satış" || x.vf_paid_on) return "closed";
+      if (vfWaiting(x)) return "vf";
       return "paid";
     }
     function vfWaiting(x) {
       return !!x.paid_on && x.campaign === "Tarifeye Ek" && !x.vf_paid_on;
     }
     function vfStatus(x) {
-      if(["Peşin Satış","Tarifeye Ek"].includes(x.campaign))return "Vodafone’dan alacak yok";
-      return x.vf_paid_on
-        ? "VF’den Ödendi"
-        : vfWaiting(x)
-          ? "VF’den Ödeme Bekleniyor"
-          : x.paid_on && x.campaign === "Peşin Satış"
-            ? "Peşin / Tamamlandı"
-            : "—";
+      if (x.vf_paid_on) return "VF’den Ödendi";
+      if (vfWaiting(x)) return "VF’den Ödeme Bekleniyor";
+      if (x.campaign === "Peşin Satış") return "Vodafone’dan alacak yok";
+      return "—";
+    }
+    function inProductBucket(x, bucket) {
+      if (bucket === "active") return true;
+      if (bucket === "vf") return vfWaiting(x);
+      if (bucket === "consignment") return !x.campaign;
+      if (bucket === "cash") return x.campaign === "Peşin Satış";
+      if (bucket === "tariff") return x.campaign === "Tarifeye Ek";
+      return itemState(x) === bucket;
     }
     const productColumns = [
       { key: "shop", label: "Bayi", value: (x) => shopName(x.shop) },
@@ -1453,14 +1458,14 @@
     function renderProductTable(rows) {
       const context = items.filter((x) => contextShops().includes(x.shop) && matchesDate(x));
       const filterSource = context.filter((x) =>
-        productBucket === "vf" ? vfWaiting(x) : productBucket === "consignment" ? !x.campaign : productBucket === "cash" ? x.campaign === "Peşin Satış" : productBucket === "tariff" ? x.campaign === "Tarifeye Ek" : itemState(x) === productBucket,
+        inProductBucket(x, productBucket),
       );
       productViews.innerHTML =
         [
           [
             "active",
             "Bayi Ürünleri",
-            context.filter((x) => itemState(x) === "active").length,
+            context.length,
           ],
           [
             "paid",

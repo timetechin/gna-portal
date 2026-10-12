@@ -129,7 +129,7 @@ const workbook = (rows) => {
     .click();
   assert.equal(await page.locator("#groupDealerRows .dealer-card").count(), 1);
   await page.locator("#groupDealerRows .dealer-card").click();
-  await page.locator('#productViews button[data-bucket="paid"]').click();
+  await page.locator('#productViews button[data-bucket="vf"]').click();
   assert((await page.locator("#itemtable tbody").innerText()).includes("G1"));
   assert(
     !(await page.locator("#itemtable tbody").innerText()).includes("Yenikent"),
@@ -303,10 +303,11 @@ const workbook = (rows) => {
   ]);
   await openDealer("Girne Çarşı");
   assert(
-    !(await page.locator("#itemtable tbody").innerText()).includes(
+    (await page.locator("#itemtable tbody").innerText()).includes(
       "2BROWSER-CASH",
     ),
   );
+  assert((await page.locator('#itemtable tbody tr').filter({hasText:'2BROWSER-CASH'}).innerText()).includes('VDM’ye Ödendi'));
   await page.locator('#productViews button[data-bucket="paid"]').click();
   assert(
     (await page.locator("#itemtable tbody").innerText()).includes(
@@ -372,6 +373,9 @@ const workbook = (rows) => {
     ),
   );
   await openDealer("Yenikent");
+  assert((await page.locator('#itemtable tbody tr').filter({hasText:'2BROWSER-TARIFF'}).innerText()).includes('VDM’ye Ödendi'));
+  await page.locator('#productViews button[data-bucket="paid"]').click();
+  assert(!(await page.locator('#itemtable tbody').innerText()).includes('2BROWSER-TARIFF'));
   await page.locator('#productViews button[data-bucket="vf"]').click();
   assert(
     (await page.locator("#itemtable tbody").innerText()).includes(
@@ -380,7 +384,7 @@ const workbook = (rows) => {
   );
   assert(
     (await page.locator("#itemtable tbody").innerText()).includes(
-      "Vodafone’dan alacak yok",
+      "VF’den Ödeme Bekleniyor",
     ),
   );
   assert((await page.locator("#itemtable tr.tariff-row .tariff-badge").count())>0);
