@@ -297,7 +297,7 @@ const workbook = (rows) => {
     await page.evaluate(async id=>{const r=await fetch("/api/uploads/"+id+"/undo",{method:"POST"});if(!r.ok)throw Error("Sample fixture undo failed");},seed.batch_id);
   }
   await nav('Excel Yükle');
-  const wideWB=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wideWB,XLSX.utils.aoa_to_sheet([['Ödeme listesi'],[],['Bayi'],['Girne Çarşı','','','','','','','2BROWSER-CASH']]),'VF Ödemeleri');
+  const wideWB=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wideWB,XLSX.utils.aoa_to_sheet([['Ödeme listesi'],[],['Bayi'],['Girne Çarşı','','','','','','','2BROWSER-CASH']]),' VF Ödemeleri ');
   await page.locator('#vf_paymentfile').setInputFiles({name:'vf-wide-columns.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:XLSX.write(wideWB,{type:'buffer',bookType:'xlsx'})});
   await page.waitForSelector('#vf_paymentSerial');
   assert(await page.locator('#vf_paymentCriteria').evaluate(el=>el.open));
@@ -307,6 +307,17 @@ const workbook = (rows) => {
   assert((await page.locator('#vf_paymentDetected').innerText()).includes('Seri sütunu: H'));
   assert((await page.locator('#vf_paymentDetected').innerText()).includes('2BROWSER-CASH'));
   const vfParsed=await page.evaluate(()=>readPaymentRows('vf_payment'));assert.equal(vfParsed.rows[0].serial,'2BROWSER-CASH');
+  assert.equal(await page.locator('#vf_paymentSheet').inputValue(),' VF Ödemeleri ');
+  if(process.env.GNA_VF_PAYMENT_SAMPLE){
+    await page.locator('#vf_paymentfile').setInputFiles(process.env.GNA_VF_PAYMENT_SAMPLE);
+    await page.waitForFunction(()=>document.querySelector('#vf_paymentSheet')?.value==='GNA Fatura ' && document.querySelector('#vf_paymentSerial')?.value==='3');
+    const actualVf=await page.evaluate(()=>readPaymentRows('vf_payment'));
+    const vfBook=XLSX.readFile(process.env.GNA_VF_PAYMENT_SAMPLE),expected=XLSX.utils.sheet_to_json(vfBook.Sheets['GNA Fatura '],{header:1,raw:true}).slice(1);
+    assert.equal(actualVf.rows.length,1881);assert.equal(actualVf.issues.length,0);
+    assert.deepEqual(actualVf.rows.map(r=>r.serial),expected.map(r=>String(r[3])));
+    assert.equal(actualVf.rows[0].source_row,2);
+  }
+
   await upload("payment", "browser-vdm.xlsx", [
     ["SeriNo"],
     ["2BROWSER-CASH"],

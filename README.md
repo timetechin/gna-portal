@@ -37,3 +37,5 @@ VF bekleme kuralı: VDM’ye ödenmiş ve VF ödemesi bulunmayan stok ürünleri
 Ayarlar → Liste Kuralları: yönetici dört ürün listesinin satış türü, VDM/VF ödeme koşulu, tamamlanma koşulu ve Vodafone sütunu görünürlüğünü toplu kaydeder. Kurallar gna_list_settings tablosunda saklanır; bayi hesapları okuyabilir ancak değiştiremez. Seçili satış türleri VE ödeme koşulları uygulanır; listeler örtüşebilir. Varsayılan VDM listesi ödenmiş stok ve peşin satışları içerir. Ayarlar mevcut ürün/ödeme geçmişini değiştirmez; açık diğer oturumlar yenilenince güncellenir.
 
 Yükleme/geri alma işlemleri tek bağlantılı ayrı yazma havuzunda yürür. Giriş ve okuma havuzu bu işlemlerin kilit kuyruğundan etkilenmez. Yükleme kilitlerinde 15 saniye bekleme sınırı uygulanır; zaman aşımında işlem parçası transaction ile geri alınır.
+
+Excel sayfa adları baştaki/sondaki boşluklarıyla aynen korunur. VF ödeme dosyasındaki GNA Fatura sayfasında 1.881 seri, gerçek dosyayla tarayıcıda D sütunundan okunarak doğrulanır (GNA_VF_PAYMENT_SAMPLE). Örnek dosya Git’e eklenmez.
