@@ -818,3 +818,22 @@ test("only admins create users with validated roles and passwords never appear i
   expect(users.find(x=>x.username==="new-admin")).toEqual({username:"new-admin",shop:"Girne Çarşı",role:"admin"});
   expect(JSON.stringify(users)).not.toContain("test-password-123");
 });
+
+test("admins edit old users, retain blank passwords, invalidate sessions and protect the final admin",async()=>{
+  const draft=(await api("users")).data.find(x=>x.pending&&x.shop==="Yenikent");expect(draft.pending).toBe(true);
+  const body={original_username:"new-dealer",username:"edited-dealer",shop:"Yenikent",role:"admin",password:""};
+  expect((await api("users","PATCH",body,dealerCookie)).status).toBe(403);
+  expect((await api("users","PATCH",body)).status).toBe(200);
+  const login=await api("login","POST",{username:"edited-dealer",password:"test-password-123"},"");expect(login.status).toBe(200);
+  const cookie=login.headers.get("set-cookie").split(";")[0];expect((await api("me","GET",undefined,cookie)).data.role).toBe("admin");
+  expect((await api("users","PATCH",{...body,original_username:"edited-dealer",password:"changed-password-123",role:"dealer"})).status).toBe(200);
+  expect((await api("me","GET",undefined,cookie)).status).toBe(401);
+  expect((await api("login","POST",{username:"edited-dealer",password:"test-password-123"},"")).status).toBe(401);
+  expect((await api("login","POST",{username:"edited-dealer",password:"changed-password-123"},"")).status).toBe(200);
+  await api("users","PATCH",{original_username:"new-admin",username:"new-admin",shop:"Girne Çarşı",role:"dealer"});
+  expect((await api("users","PATCH",{original_username:"admin",username:"admin",shop:"Tekinler Yönetim",role:"dealer"})).status).toBe(409);
+});
+test("all unmatched serials are returned for complete Excel error reports",async()=>{
+  const r=await api("import","POST",{kind:"payment",rows:Array.from({length:125},(_,i)=>({serial:"missing-"+i,source_row:i+2}))});
+  expect(r.status).toBe(200);expect(r.data.issues.length).toBe(125);expect(r.data.issues[124]).toEqual({serial:"missing-124",reason:"Seri bulunamadı",row:126});
+});

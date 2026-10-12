@@ -103,7 +103,7 @@ const workbook = (rows) => {
   const undo = async (name) => {
     await nav("Excel Yükle");
     await page
-      .locator("#importhistory tr")
+      .locator("#importhistory tr:has(td)")
       .filter({ hasText: name })
       .getByRole("button", { name: "Geri Al", exact: true })
       .first()
@@ -147,11 +147,11 @@ const workbook = (rows) => {
   await page.locator("#filter-campaign summary").click();
   await page
     .locator("#filter-campaign")
-    .getByRole("button", { name: "Temizle", exact: true })
+    .getByRole("button", { name: "Seçimi kaldır", exact: true })
     .click();
   await page
     .locator("#filter-campaign")
-    .getByRole("button", { name: "Uygula", exact: true })
+    .getByRole("button", { name: "Tamam", exact: true })
     .click();
   assert.equal(await page.locator("#itemtable tbody tr").count(), 0);
   await page
@@ -210,15 +210,9 @@ const workbook = (rows) => {
       .querySelector("#customerImportMessage")
       .textContent.includes("Yeni kart: 0"),
   );
-  await nav("Müşteri Cari Kartları");
-  assert.equal(await page.locator("#customerFile").count(), 1);
-  assert.equal(await page.locator("#customerFile").isVisible(), false);
-  await page.locator("#customerSearch").fill("000123");
-  assert(
-    (await page.locator("#customerRows").innerText()).includes(
-      "Excel Müşterisi",
-    ),
-  );
+  assert.equal(await page.locator("nav").getByRole("button",{name:"Müşteri Cari Kartları",exact:true}).count(),0);
+  assert.equal(await page.locator("nav").getByRole("button",{name:"Vodafone Alacakları",exact:true}).count(),0);
+  assert.equal(await page.locator("nav").getByRole("button",{name:"İşlem Kayıtları",exact:true}).count(),0);
   await nav("Excel Yükle");
   assert.equal(await page.locator("#onlyPrefix2").isChecked(), true);
   await upload("stock", "browser-stock.xlsx", [
@@ -246,6 +240,39 @@ const workbook = (rows) => {
   assert(
     (await page.locator("#itemtable tbody").innerText()).includes("12.10.2026"),
   );
+  assert((await page.locator("#dealerDashboard").innerText()).includes("Eldeki Konsinye"));
+  await page.locator("#dateMonth").fill("2026-11");
+  await page.locator("#dateMonth").dispatchEvent("change");
+  assert.equal(await page.locator("#itemtable tbody tr").count(),0);
+  await page.getByRole("button",{name:"Tarihleri temizle",exact:true}).click();
+  await page.locator("#filter-serial summary").click();
+  await page.locator("#filter-serial").getByRole("button",{name:"Bu sütunu gizle",exact:true}).click();
+  assert.equal(await page.locator("#filter-serial").count(),0);
+  await page.getByRole("button",{name:"Gizli sütunları göster",exact:true}).click();
+  const productDownloadPromise=page.waitForEvent("download");
+  await page.getByRole("button",{name:"Excel İndir",exact:false}).click();
+  const productDownload=await productDownloadPromise;
+  const productWB=XLSX.readFile(await productDownload.path());
+  const productRows=XLSX.utils.sheet_to_json(productWB.Sheets[productWB.SheetNames[0]]);
+  assert(productRows.some(x=>x.Seri==="2BROWSER-CASH"));
+  await nav("Excel Yükle");
+  await page.locator("#activationfile").setInputFiles({name:"custom-campaign.xlsx",mimeType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",buffer:workbook([["Aktivasyon Tarihi","Cihaz Kampanya Adı","Cihaz IMEI"],["14.10.2026","Özel Kampanya","2BROWSER-CASH"]])});
+  await page.locator('.campaign-choice[data-campaign="Özel Kampanya"]').waitFor();
+  await page.locator('.campaign-choice[data-campaign="Özel Kampanya"]').selectOption("Tarifeye Ek");
+  await page.locator("button[onclick=\"uploadFile('activation')\"]").click();
+  await page.waitForFunction(()=>activationmsg.textContent.startsWith("Güncellendi:"));
+  assert.equal((await read("items")).find(x=>x.serial==="2BROWSER-CASH").campaign,"Tarifeye Ek");
+  await undo("custom-campaign.xlsx");
+  await upload("payment","missing-report.xlsx",[["SeriNo"],...Array.from({length:125},(_,i)=>["MISSING-BROWSER-"+i])]);
+  assert((await page.locator("#paymentmsg").innerText()).includes("Hata: 125"));
+  assert(!(await page.locator("#paymentmsg").innerText()).includes("MISSING-BROWSER"));
+  const errorDownloadPromise=page.waitForEvent("download");
+  await page.locator("#paymentReport").click();
+  const errorDownload=await errorDownloadPromise;
+  const errorWB=XLSX.readFile(await errorDownload.path());
+  const errorRows=XLSX.utils.sheet_to_json(errorWB.Sheets[errorWB.SheetNames[0]]);
+  assert.equal(errorRows.length,125);assert.equal(errorRows[124]["Seri / IMEI"],"MISSING-BROWSER-124");assert.equal(errorRows[124].Sebep,"Seri bulunamadı");
+  await undo("missing-report.xlsx");
   await upload("payment", "browser-vdm.xlsx", [
     ["SeriNo"],
     ["2BROWSER-CASH"],
@@ -382,7 +409,7 @@ const workbook = (rows) => {
   assert(!(await read("items")).some((x) => x.serial.startsWith("2BROWSER-")));
   await nav("Excel Yükle");
   const old = page
-    .locator("#importhistory tr")
+    .locator("#importhistory tr:has(td)")
     .filter({ hasText: "old-history.xlsx" });
   assert((await old.innerText()).includes("Geri alma desteklenmiyor"));
   assert.equal(await old.getByRole("button", { name: "Geri Al" }).count(), 0);
@@ -395,6 +422,16 @@ const workbook = (rows) => {
     path: path.resolve(__dirname, "../artifacts/dealer-groups.png"),
     fullPage: true,
   });
+  await nav("Kullanıcı Yönetimi");
+  const edit=page.locator('#userlist button[data-user="edited-dealer"]');
+  await edit.click();
+  await page.locator("#newrole").selectOption("admin");
+  await page.locator("#newpass").fill("ui-password-123");
+  await page.getByRole("button",{name:"Şifreyi göster",exact:true}).click();
+  assert.equal(await page.locator("#newpass").getAttribute("type"),"text");
+  await page.locator('#users button[onclick="createUser()"]').click();
+  await page.waitForFunction(()=>usermsg.textContent.includes("güncellendi"));
+  assert.equal((await read("users")).find(x=>x.username==="edited-dealer").role,"admin");
   await nav("Çıkış");
   await login("dealer");
   assert.equal(

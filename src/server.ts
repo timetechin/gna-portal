@@ -945,12 +945,31 @@ Bun.serve({
           }),
         );
       }
-      if (path === "/api/users" && req.method === "GET")
-        return out(
-          await run(
-            "SELECT username,shop,role FROM gna_users ORDER BY username",
-          ),
-        );
+      if (path === "/api/users" && req.method === "GET") {
+        const users = await run("SELECT username,shop,role FROM gna_users ORDER BY username");
+        const shops = await run("SELECT DISTINCT shop FROM (SELECT shop FROM gna_items UNION SELECT shop FROM gna_dealer_profiles UNION SELECT shop FROM gna_dealer_accounts) s WHERE NOT EXISTS(SELECT 1 FROM gna_users u WHERE u.shop=s.shop) ORDER BY shop");
+        const names=new Set(users.map(x=>x.username));
+        return out([...users,...shops.map(x=>{let name=x.shop,n=2;while(names.has(name))name=x.shop+"-"+n++;names.add(name);return {username:name,shop:x.shop,role:"dealer",pending:true};})]);
+      }
+      if (path === "/api/users" && req.method === "PATCH") {
+        const b=await req.json(), old=clean(b.original_username), name=clean(b.username), shop=clean(b.shop), role=b.role;
+        if (!old || !name || !shop || !["dealer","admin"].includes(role)) return bad("Kullanıcı, bayi ve geçerli yetki gerekli");
+        if (b.password && (typeof b.password!=="string" || b.password.length<12)) return bad("Yeni şifre en az 12 karakter olmalı");
+        const result=await db.begin(async tx=>{
+          await tx.unsafe("SELECT pg_advisory_xact_lock(719263004)");
+          const [target]=await tx.unsafe("SELECT * FROM gna_users WHERE username=$1 FOR UPDATE",[old]);
+          if (!target) throw new UserError("Kullanıcı bulunamadı",404);
+          if (target.role==="admin" && role!=="admin" && Number((await tx.unsafe("SELECT count(*) n FROM gna_users WHERE role='admin'"))[0].n)<=1) throw new UserError("Son yöneticinin yetkisi kaldırılamaz",409);
+          if (old!==name && (await tx.unsafe("SELECT 1 FROM gna_users WHERE username=$1",[name])).length) throw new UserError("Kullanıcı adı zaten mevcut",409);
+          const salt=b.password?crypto.randomUUID():target.salt;
+          const hash=b.password?await digest(salt+b.password):target.password_hash;
+          await tx.unsafe("UPDATE gna_users SET username=$1,shop=$2,role=$3,salt=$4,password_hash=$5 WHERE username=$6",[name,shop,role,salt,hash,old]);
+          const changedIdentity=old!==name||shop!==target.shop||role!==target.role||!!b.password;
+          if(changedIdentity)await tx.unsafe("DELETE FROM gna_sessions WHERE username=$1",[old]);
+          await audit(tx,u,"user.edit",{original_username:old,username:name,shop,role,password_changed:!!b.password});
+          return {ok:true,relogin:changedIdentity&&u.username===old};
+        });return out(result);
+      }
       if (path === "/api/users" && req.method === "POST") {
         const b = await req.json();
         if (!b.shop || !b.username || String(b.password || "").length < 12)
@@ -990,10 +1009,12 @@ Bun.serve({
           let added = 0,
             skipped = 0;
           const issues = [];
+          let sourceRow = null;
           const report = (serial, reason) => {
-            if (issues.length < 100) issues.push({ serial, reason });
+            issues.push({ serial, reason, row: sourceRow });
           };
           for (const x of b.rows) {
+            sourceRow = Number.isInteger(x.source_row) ? x.source_row : null;
             const serial = String(x.serial || "")
               .trim()
               .slice(0, 100);

@@ -42,7 +42,8 @@ html = html
     /<script>[\s\S]*?<\/script>/,
     () => "<script>" + browserCode + "</script>",
   )
-  .replace(/>\s+</g, "><");
+  .replace(/>\s+</g, "><")
+  .replace(/<style>([\s\S]*?)<\/style>/, (_, css) => "<style>" + css.replace(/\s+/g, " ").replace(/\s*([{}:;,])\s*/g, "$1").trim() + "</style>");
 const pattern = /const html = await Bun\.file\([\s\S]*?\)\.text\(\);/;
 if (!pattern.test(server)) throw Error("Frontend entry point was not found");
 const intermediate = new URL(

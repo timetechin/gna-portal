@@ -245,6 +245,8 @@
     #cariSettings select {
       max-width: 240px;
     }
+
+    body{font:14px Arial,Helvetica,sans-serif;background:#f4f6fa;color:#152033}aside{width:225px;padding:18px 13px;background:#650000;overflow:auto}aside h2{font-size:19px;line-height:1.3}aside p{font-size:12px;color:#f1dada}nav button{font-size:14px;padding:11px 12px;border-radius:10px;margin:3px 0}nav button:hover,nav button.active{background:#ffffff26}main{padding:18px 20px;margin-left:225px}h1{font-size:21px;margin:0}h2{font-size:19px}h3{font-size:17px;margin:0 0 12px;color:#650000}.topbar{display:flex;align-items:center;justify-content:space-between;background:white;padding:14px 18px;margin:-18px -20px 18px;border-bottom:1px solid #e2e7ef}.card{border:1px solid #7f8593;border-radius:14px;padding:14px}button{font:inherit;padding:8px 12px;background:#f6f6f6;border:1px solid #e2e2e2;border-radius:9px;cursor:pointer;box-shadow:0 1px 2px #0000000a}button:hover{background:#eee}.btn{background:#650000;border:1px solid #650000;border-radius:10px;padding:9px 13px}.btn:hover{background:#850000}input,select{font:inherit;background:#f5f6f7;border-radius:9px;padding:9px;border-color:#e1e3e7}td,th{border:1px solid #e2e8f2;padding:9px}th{background:#e8edf5;color:#650000;font-size:12px}tbody tr:nth-child(even){background:#f7f9fc}tbody tr:hover{background:#fff3f3}.column-filter{position:relative}.column-menu{position:absolute;top:30px;left:0;z-index:30;width:255px;border-radius:12px;box-shadow:0 5px 20px #0002;padding:9px;color:#152033;font-size:12px}.column-menu input:not([type=checkbox]){width:100%;margin:4px 0}.column-filter summary{list-style:none;display:flex;justify-content:space-between;gap:12px;align-items:center}.column-filter summary span{border:1px solid #9f7373;background:white;padding:2px 5px;border-radius:3px}.column-options{border-top:1px solid #adb3bd;border-bottom:1px solid #adb3bd;margin:6px 0}.column-menu .btn{width:100%;order:9}.filter-choice{margin:4px 0}.totals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.metric{text-align:left;color:#152033;display:flex;flex-direction:column;gap:8px}.metric strong{font-size:22px;color:#650000}.metric small{color:#7b8695}.date-controls{display:flex;flex-wrap:wrap;align-items:center;padding:8px;background:#f7f9fc;border:1px solid #dbe1ea;border-radius:10px}.muted{color:#7b8695}#activationCriteria label{display:block;margin:5px 0}#activationCriteria select{max-width:100%}@media(max-width:720px){aside{width:auto;position:static}main{margin:0;padding:12px}.topbar{margin:-12px -12px 12px}.totals{grid-template-columns:1fr}.column-menu{position:fixed;top:20%;left:15%;width:70%;max-height:65vh;overflow:auto}}
   </style>
   <div id="login" class="card">
     <h1>GNA Portalı</h1>
@@ -272,28 +274,11 @@
         ><button
           class="admin"
           onclick="
-            tab('customers');
-            showCustomerCards();
-          "
-        >
-          Müşteri Cari Kartları</button
-        ><button onclick="tab('vod')">Vodafone Alacakları</button
-        ><button
-          class="admin"
-          onclick="
             tab('settings');
             showSettings();
           "
         >
           Cari Kayıt Ayarları</button
-        ><button
-          class="admin"
-          onclick="
-            tab('audit');
-            showAudit();
-          "
-        >
-          İşlem Kayıtları</button
         ><button
           class="admin"
           onclick="
@@ -303,12 +288,12 @@
         >
           Fiyatlama Listesi</button
         ><button class="admin" onclick="tab('upload')">Excel Yükle</button
-        ><button class="admin" onclick="tab('users')">Kullanıcı Yönetimi</button
+        ><button class="admin" onclick="tab('users'); refresh()">Kullanıcı Yönetimi</button
         ><button onclick="logout()">Çıkış</button>
       </nav>
     </aside>
     <main>
-      <h1 id="heading">Ana Panel</h1>
+      <div class="topbar"><h1 id="heading">Ana Panel</h1><button onclick="restoreAllTableColumns()">Sütunları göster</button><button onclick="exportCurrentSection()">▤ Excel İndir</button></div>
       <p id="identity" class="muted"></p>
       <section id="home" class="on">
         <div class="card" id="summary"></div>
@@ -320,7 +305,7 @@
           <div id="productlist" hidden>
             <button class="btn" onclick="backFromProducts()">← Geri</button>
             <h2 id="dealerTitle"></h2>
-            <div id="productViews" class="view-buttons"></div>
+            <div id="dealerDashboard" class="totals"></div><div class="date-controls"><label>Tarih türü <select id="dateField" onchange="draw()"><option value="shipped">Alım Tarihi</option><option value="sold">Aktivasyon Tarihi</option></select></label><label>Başlangıç <input id="dateFrom" type="date" onchange="draw()"></label><label>Bitiş <input id="dateTo" type="date" onchange="draw()"></label><label>Ay <input id="dateMonth" type="month" onchange="draw()"></label><button onclick="clearDateFilters()">Tarihleri temizle</button></div><button id="showColumns" onclick="restoreColumns()">Gizli sütunları göster</button><div id="productViews" class="view-buttons"></div>
             <div id="dealerAliases" class="admin"></div>
             <button onclick="resetColumnFilters()">
               Sütun filtrelerini temizle
@@ -439,11 +424,12 @@
               <input
                 type="file"
                 id="activationfile"
+                onchange="previewActivation()"
                 accept=".xlsx,.xls"
               /><button class="btn" onclick="uploadFile('activation')">
                 Vodafone Excel Yükle
               </button>
-              <p id="activationmsg"></p>
+              <div id="activationCriteria"><p>Dosyayı seçince kampanya alt kriterlerini belirleyebilirsiniz.</p></div><p id="activationmsg"></p>
             </div>
           </div>
           <div class="uploadbox">
@@ -470,8 +456,8 @@
       </section>
       <section id="users">
         <div class="card">
-          <h3>Yeni Kullanıcı</h3>
-          <input id="shop" placeholder="Bayi cari / SHOP adı" /><input
+          <h3 id="userFormTitle">Yeni Kullanıcı</h3><button onclick="cancelUserEdit()">Yeni kullanıcı / Vazgeç</button>
+          <input id="shop" list="userShops" placeholder="Bayi cari / SHOP adı" /><datalist id="userShops"></datalist><input
             id="newname"
             placeholder="Kullanıcı adı"
           /><input
@@ -541,6 +527,7 @@
       document
         .querySelectorAll("section")
         .forEach((n) => n.classList.toggle("on", n.id === x));
+      document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("active",b.getAttribute("onclick")?.includes("'"+x+"'")));
       heading.textContent = {
         home: "Ana Panel",
         items: "Bayi Carileri",
@@ -608,10 +595,8 @@
         });
       if (me.role === "admin") {
         let u = await api("users");
-        userlist.innerHTML = table(
-          ["Kullanıcı", "SHOP", "Rol"],
-          u.map((x) => [x.username, x.shop, x.role]),
-        );
+        userShops.innerHTML=directory.dealers.map(d=>`<option value="${e(d.shop)}">${e(d.display_name)}</option>`).join("");
+        userlist.innerHTML = `<p>Cari kayıtları otomatik listelenir. Şifre girip kaydettiğinizde erişim açılır.</p><table><thead><tr><th>Kullanıcı</th><th>Bayi</th><th>Rol</th><th>İşlem</th></tr></thead><tbody>${u.map(x=>`<tr><td>${e(x.username||"Henüz erişim açılmadı")}</td><td>${e(shopName(x.shop))}</td><td>${x.pending?"Şifre bekleniyor":x.role==="admin"?"Yönetici":"Bayi"}</td><td><button data-user="${e(x.pending?"":x.username)}" data-suggest="${e(x.username)}" data-shop="${e(x.shop)}" data-role="${e(x.role)}" onclick="editUser(this)">${x.pending?"Erişim Aç":"Düzenle"}</button></td></tr>`).join("")}</tbody></table>`;
       }
     }
     function fillShops() {
@@ -643,7 +628,9 @@
         directory.dealers.find((d) => d.shop === shop)?.display_name || shop
       );
     }
+    let homeAll = false;
     function contextShops() {
+      if(homeAll)return directory.dealers.map(d=>d.shop);
       if (selectedDealer) return [selectedDealer];
       if (selectedGroup)
         return directory.dealers
@@ -663,6 +650,7 @@
       );
     }
     function showDealers() {
+      homeAll=false;
       selectedDealer = null;
       selectedGroup = null;
       columnFilters = {};
@@ -711,6 +699,7 @@
             : "") || "<p>Bayi veya ana cari bulunamadı.</p>";
     }
     function showDealerGroup(id) {
+      homeAll=false;
       const a = directory.groups.find((a) => String(a.id) === String(id));
       if (!a || !a.active) return;
       selectedGroup = String(id);
@@ -1039,6 +1028,7 @@
       productlist.hidden = false;
     }
     function openDealer(n) {
+      homeAll=false;
       if (!directory.dealers.some((d) => d.shop === n)) return;
       selectedDealer = n;
       tab("items");
@@ -1053,10 +1043,8 @@
       let q = (search.value || "").toLocaleLowerCase("tr"),
         filtered = items.filter(
           (x) =>
-            contextShops().includes(x.shop) &&
-            (productBucket === "vf"
-              ? vfWaiting(x)
-              : itemState(x) === productBucket) &&
+            contextShops().includes(x.shop) && matchesDate(x) &&
+            (productBucket === "vf" ? vfWaiting(x) : productBucket === "consignment" ? !x.campaign : productBucket === "cash" ? x.campaign === "Peşin Satış" : productBucket === "tariff" ? x.campaign === "Tarifeye Ek" : itemState(x) === productBucket) &&
             (!productfilter.value || x.product === productfilter.value) &&
             (!vodfilter.value ||
               (vodfilter.value === "waiting"
@@ -1108,6 +1096,8 @@
         "</p><p>Vodafone alacağı: " +
         money(v.reduce((s, x) => s + Number(x.price || 0), 0)) +
         "</p>";
+      renderDealerDashboard();
+      renderHomeDashboard();
       renderProductTable(filtered);
       vodtable.innerHTML = table(
         ["Bayi", "Seri", "Tutar", "Ödeme"],
@@ -1120,15 +1110,23 @@
           .map((x) => [x.shop, x.serial, x.paid_on, x.campaign || "Stokta"]),
       );
     }
+    let editingUsername="";
+    function editUser(button){editingUsername=button.dataset.user;newname.value=button.dataset.suggest||editingUsername;shop.value=button.dataset.shop;newrole.value=button.dataset.role;newpass.value="";newpass.type="password";userFormTitle.textContent=editingUsername?"Kullanıcı Düzenle":"Cari için Erişim Aç";newpass.placeholder=editingUsername?"Yeni şifre (boşsa mevcut korunur)":"Şifre (en az 12 karakter)";usermsg.textContent="";newname.focus();}
+    function cancelUserEdit(){editingUsername="";newname.value="";shop.value="";newpass.value="";newrole.value="dealer";userFormTitle.textContent="Yeni Kullanıcı";newpass.placeholder="Şifre (en az 12 karakter)";}
     async function createUser() {
       try {
-        await api("users", "POST", {
+        const result = await api("users", editingUsername ? "PATCH" : "POST", {
+          original_username: editingUsername,
           username: newname.value,
           shop: shop.value,
           password: newpass.value,
           role: newrole.value,
         });
-        usermsg.textContent = "Kullanıcı oluşturuldu";
+        usermsg.textContent = editingUsername ? "Kullanıcı güncellendi" : "Kullanıcı oluşturuldu";
+        if(result.relogin){alert("Hesabınız güncellendi. Yeni bilgilerinizle tekrar giriş yapın.");location.reload();return;}
+        editingUsername = "";
+        userFormTitle.textContent = "Yeni Kullanıcı";
+        newpass.placeholder = "Şifre (en az 12 karakter)";
         newpass.value = "";
         await refresh();
       } catch (x) {
@@ -1255,6 +1253,7 @@
           .map((o) => {
             if (type === "stock")
               return {
+                source_row: Number(o.__rowNum__ ?? 0) + 1,
                 serial: str(pick(o, ["SeriNo", "Seri No", "IMEI"], 18)),
                 shop: str(pick(o, ["MusteriKisaAd", "Bayi"], 6)),
                 product: str(pick(o, ["Urun", "Ürün"], 16)),
@@ -1278,6 +1277,7 @@
               };
             if (type === "payment" || type === "vf_payment")
               return {
+                source_row: Number(o.__rowNum__ ?? 0) + 1,
                 serial: str(pick(o, ["SeriNo", "Seri No", "IMEI"])),
                 paid_on: dt(
                   pick(o, [
@@ -1289,16 +1289,17 @@
                   ]),
                 ),
               };
-            let c = str(pick(o, ["Cihaz Kampanya Adı", "Kampanya"], 4));
+            let c = str(activationColumn(o,"campaign",["Cihaz Kampanya Adı", "Kampanya"],4));
             return {
+              source_row: Number(o.__rowNum__ ?? 0) + 1,
               shop: str(
                 pick(o, ["Bayi Adı", "Bayi", "Şube", "Bayi Ünvanı"], 2),
               ),
-              serial: str(pick(o, ["Cihaz IMEI", "IMEI", "SeriNo"], 7)),
-              campaign: activationCampaign(c),
+              serial: str(activationColumn(o,"serial",["Cihaz IMEI", "IMEI", "SeriNo"],7)),
+              campaign: chosenCampaign(c),
               sold: dt(
-                pick(
-                  o,
+                activationColumn(
+                  o, "date",
                   [
                     "Aktivasyon Tarihi",
                     "AktivasyonTarihi",
@@ -1352,10 +1353,10 @@
           added +
           " · Atlandı: " +
           skipped +
-          (issues.length
-            ? " · Kontrol edilecek satırlar: " +
-              issues.map((x) => x.serial + ": " + x.reason).join("; ")
-            : "");
+          " · Hata: " + issues.length;
+        uploadReports[type] = issues;
+        const oldReport=document.getElementById(type+"Report");if(oldReport)oldReport.remove();
+        if(issues.length){const button=document.createElement("button");button.id=type+"Report";button.textContent="Hata Raporu İndir";button.onclick=()=>downloadUploadReport(type);msg.after(button);}
         await refresh();
       } catch (x) {
         msg.textContent = "Hata: " + x.message;
@@ -1427,9 +1428,9 @@
       { key: "vf", label: "Vodafone", value: vfStatus },
     ];
     function renderProductTable(rows) {
-      const context = items.filter((x) => contextShops().includes(x.shop));
+      const context = items.filter((x) => contextShops().includes(x.shop) && matchesDate(x));
       const filterSource = context.filter((x) =>
-        productBucket === "vf" ? vfWaiting(x) : itemState(x) === productBucket,
+        productBucket === "vf" ? vfWaiting(x) : productBucket === "consignment" ? !x.campaign : productBucket === "cash" ? x.campaign === "Peşin Satış" : productBucket === "tariff" ? x.campaign === "Tarifeye Ek" : itemState(x) === productBucket,
       );
       productViews.innerHTML =
         [
@@ -1456,16 +1457,17 @@
           )
           .join("") +
         `<button ${selectedDealer ? "" : "disabled"} onclick="openProfitability()">Kârlılık</button>`;
-      const head = productColumns
+      const visibleColumns = productColumns.filter(c=>!hiddenColumns.has(c.key));
+      const head = visibleColumns
         .map((c) => {
           const values = [...new Set(filterSource.map(c.value))].sort((a, b) =>
             a.localeCompare(b, "tr", { numeric: true }),
           );
           const active = columnFilters[c.key];
-          return `<th><details class="column-filter" id="filter-${c.key}"><summary>${c.label} ${active ? "●" : "▼"}</summary><div class="column-menu"><input aria-label="${c.label} filtresinde ara" placeholder="Değer ara" oninput="searchColumnOptions(this)"><div><button data-key="${c.key}" data-direction="1" onclick="setColumnSort(this)">Artan</button><button data-key="${c.key}" data-direction="-1" onclick="setColumnSort(this)">Azalan</button></div><button onclick="selectColumnOptions(this,true)">Tümünü seç</button><button onclick="selectColumnOptions(this,false)">Temizle</button><div class="column-options">${values.map((v) => `<label class="filter-choice"><input type="checkbox" value="${e(v)}" ${!active || active.includes(v) ? "checked" : ""}><span>${e(v)}</span></label>`).join("")}</div><button class="btn" data-key="${c.key}" onclick="applyColumnFilter(this)">Uygula</button></div></details></th>`;
+          return `<th><details class="column-filter" id="filter-${c.key}"><summary>${c.label} <span>${active ? "●" : "▼"}</span></summary><div class="column-menu"><input aria-label="${c.label} filtresinde ara" placeholder="Değer ara" oninput="searchColumnOptions(this)"><div><button data-key="${c.key}" data-direction="1" onclick="setColumnSort(this)">${["sold","shipped"].includes(c.key)?"Eskiden yeniye":"A’dan Z’ye"}</button><button data-key="${c.key}" data-direction="-1" onclick="setColumnSort(this)">${["sold","shipped"].includes(c.key)?"Yeniden eskiye":"Z’den A’ya"}</button></div><button onclick="selectColumnOptions(this,true)">Tümünü seç</button><button onclick="selectColumnOptions(this,false)">Seçimi kaldır</button><div class="column-options">${values.map((v) => `<label class="filter-choice"><input type="checkbox" value="${e(v)}" ${!active || active.includes(v) ? "checked" : ""}><span>${e(v)}</span></label>`).join("")}</div><button class="btn" data-key="${c.key}" onclick="applyColumnFilter(this)">Tamam</button><button data-key="${c.key}" onclick="hideColumn(this.dataset.key)">Bu sütunu gizle</button></div></details></th>`;
         })
         .join("");
-      itemtable.innerHTML = `<table><thead><tr>${head}</tr></thead><tbody>${rows.map((x) => "<tr>" + productColumns.map((c) => "<td>" + e(c.value(x)) + "</td>").join("") + "</tr>").join("")}</tbody></table><p class="muted">Gösterilen kayıt: ${rows.length}</p>`;
+      itemtable.innerHTML = `<table><thead><tr>${head}</tr></thead><tbody>${rows.map((x) => "<tr>" + visibleColumns.map((c) => "<td>" + e(c.value(x)) + "</td>").join("") + "</tr>").join("")}</tbody></table><p class="muted">Gösterilen kayıt: ${rows.length}</p>`;
     }
     function searchColumnOptions(input) {
       const q = input.value.toLocaleLowerCase("tr");
@@ -1680,6 +1682,34 @@
       openDealer(profitShop);
     }
 
+
+    const hiddenColumns = new Set(), uploadReports = {};
+    function hideColumn(key){if(hiddenColumns.size>=productColumns.length-1)return;hiddenColumns.add(key);draw();}
+    function restoreColumns(){hiddenColumns.clear();draw();}
+    function matchesDate(x){const d=x[dateField.value];return (!dateFrom.value||d&&d>=dateFrom.value)&&(!dateTo.value||d&&d<=dateTo.value)&&(!dateMonth.value||d&&d.startsWith(dateMonth.value));}
+    function clearDateFilters(){dateFrom.value=dateTo.value=dateMonth.value="";draw();}
+    function dashboardMarkup(rows,clickable,home=false){return [["consignment","Eldeki Konsinye",rows.filter(x=>!x.campaign)],["cash","Peşin Satılan",rows.filter(x=>x.campaign==="Peşin Satış")],["tariff","Tarifeye Ek Satılan",rows.filter(x=>x.campaign==="Tarifeye Ek")]].map(([key,label,list])=>`<${clickable?"button":"div"} class="card metric" ${clickable?`onclick="${home?"openHomeBucket":"changeProductBucket"}('${key}')"`:""}><span>${label}</span><strong>${list.length} ürün</strong><b>${money(list.reduce((sum,x)=>sum+Number(x.price||0),0))}</b><small>Ürün alış tutarı</small></${clickable?"button":"div"}>`).join("");}
+    function openHomeBucket(key){homeAll=true;selectedDealer=null;selectedGroup=null;productBucket=key;columnFilters={};clearDateFilters();tab("items");showProducts();dealerTitle.textContent=me.role==="admin"?"Tüm Bayiler":shopName(me.shop);draw();}
+    function renderDealerDashboard(){dealerDashboard.innerHTML=dashboardMarkup(items.filter(x=>contextShops().includes(x.shop)&&matchesDate(x)),true);}
+    function renderHomeDashboard(){summary.innerHTML='<h3>'+ (me.role==="admin"?"Tüm Bayiler":"Bayi Özeti")+'</h3><div class="totals">'+dashboardMarkup(items,true,true)+'</div><p>Toplam ürün: '+items.length+'</p>';}
+    function writeExcel(name,headers,rows){if(!window.XLSX){alert("Excel okuyucu yüklenmedi");return;}const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([headers,...rows]),"Rapor");XLSX.writeFile(wb,name+".xlsx");}
+    function downloadUploadReport(type){writeExcel(type+"-hata-raporu",["Excel Satırı","Seri / IMEI","Sebep"],(uploadReports[type]||[]).map(x=>[x.row||"",String(x.serial),x.reason]));}
+    function exportCurrentSection(){const section=document.querySelector("section.on");const matrices=[];section.querySelectorAll("table").forEach(t=>{const rs=[...t.rows].filter(r=>!r.hidden).map(r=>[...r.cells].filter(c=>!c.hidden).map(c=>{const control=c.querySelector("input:not([type=checkbox]),select");return c.dataset.title||c.querySelector("summary")?.childNodes[0]?.textContent?.trim()||(control?(control.tagName==="SELECT"?control.selectedOptions[0]?.textContent:control.value):c.innerText.replace(/\s+/g," ").trim());}));if(rs.length)matrices.push(rs);});if(!matrices.length){if(section.id==="home")matrices.push([["Gösterge","Adet","Ürün Alış Tutarı"],...[["Konsinye",items.filter(x=>!x.campaign)],["Peşin",items.filter(x=>x.campaign==="Peşin Satış")],["Tarifeye Ek",items.filter(x=>x.campaign==="Tarifeye Ek")]].map(([n,rs])=>[n,rs.length,rs.reduce((s,x)=>s+Number(x.price||0),0)])]);else if(section.id==="items")matrices.push([["Cari","Tür"],...directory.groups.filter(g=>g.active).map(g=>[g.name,"Ana Cari"]),...directory.dealers.filter(d=>d.active&&(!selectedGroup||String(d.account_id)===String(selectedGroup))).map(d=>[d.display_name,"Bayi"])]);else matrices.push([["Bilgi"],[section.innerText]]);}
+      const wb=XLSX.utils.book_new();matrices.forEach((m,i)=>XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(m),"Rapor "+(i+1)));XLSX.writeFile(wb,"GNA-"+section.id+".xlsx");}
+    let activationHeaders=[],activationPreviewRows=[];
+    function activationColumn(row,key,names,fallback){const select=document.getElementById("activation-"+key);return select&&select.value?row[select.value]:pick(row,names,fallback);}
+    function chosenCampaign(value){const select=[...document.querySelectorAll(".campaign-choice")].find(x=>x.dataset.campaign===value);return select?select.value:activationCampaign(value);}
+    async function previewActivation(){try{const f=activationfile.files[0];if(!f)return;const wb=XLSX.read(await f.arrayBuffer(),{type:"array"});const sh=wb.Sheets[wb.SheetNames.includes("Data")?"Data":wb.SheetNames[0]];activationPreviewRows=XLSX.utils.sheet_to_json(sh,{defval:"",raw:true});activationHeaders=Object.keys(activationPreviewRows[0]||{});const opts=activationHeaders.map(h=>`<option value="${e(h)}">${e(h)}</option>`).join("");activationCriteria.innerHTML='<h4>Excel sütunlarını seç</h4>'+[["campaign","Kampanya"],["serial","Seri / IMEI"],["date","Aktivasyon tarihi"]].map(([key,label])=>`<label>${label}<select id="activation-${key}" onchange="renderCampaignCriteria()"><option value="">Otomatik (${key==="campaign"?"E":key==="serial"?"H":"Tarih"})</option>${opts}</select></label>`).join("")+'<div id="campaignMapping"></div>';renderCampaignCriteria();}catch(err){activationmsg.textContent=err.message;}}
+    function renderCampaignCriteria(){const values=[...new Set(activationPreviewRows.map(o=>str(activationColumn(o,"campaign",["Cihaz Kampanya Adı","Kampanya"],4))))].filter(Boolean);const previous=new Map([...document.querySelectorAll(".campaign-choice")].map(x=>[x.dataset.campaign,x.value]));campaignMapping.innerHTML='<h4>Kampanya alt kriterleri</h4>'+values.map(v=>{const mapped=previous.get(v)??activationCampaign(v);return `<label>${e(v)}<select class="campaign-choice" data-campaign="${e(v)}"><option value="" ${!mapped?"selected":""}>İşleme alma</option><option value="Peşin Satış" ${mapped==="Peşin Satış"?"selected":""}>Peşin Satış</option><option value="Tarifeye Ek" ${mapped==="Tarifeye Ek"?"selected":""}>Tarifeye Ek</option></select></label>`;}).join("");}
+
+    function cellValue(cell){const control=cell.querySelector("input:not([type=checkbox]),select");return control?(control.tagName==="SELECT"?control.selectedOptions[0]?.textContent||"":control.value):cell.innerText.trim();}
+    function enhanceTables(){document.querySelectorAll("section table:not([data-enhanced])").forEach(t=>{t.dataset.enhanced="true";if(t.closest("#itemtable"))return;const first=t.rows[0];if(!first)return;t._filters={};[...first.cells].forEach((cell,index)=>{if(cell.tagName!=="TH")return;const title=cell.textContent;cell.dataset.title=title;const values=[...new Set([...t.rows].slice(1).map(r=>cellValue(r.cells[index]||document.createElement("td"))))].sort((a,b)=>a.localeCompare(b,"tr",{numeric:true}));cell.innerHTML=`<details class="column-filter" data-index="${index}"><summary>${e(title)} <span>▼</span></summary><div class="column-menu"><div><button data-dir="1" onclick="sortGenericTable(this)">Artan</button><button data-dir="-1" onclick="sortGenericTable(this)">Azalan</button></div><input placeholder="Listede ara" oninput="searchColumnOptions(this)"><button onclick="selectColumnOptions(this,true)">Tümünü seç</button><button onclick="selectColumnOptions(this,false)">Seçimi kaldır</button><div class="column-options">${values.map(v=>`<label class="filter-choice"><input type="checkbox" checked value="${e(v)}">${e(v)}</label>`).join("")}</div><button onclick="hideGenericColumn(this)">Bu sütunu gizle</button><button class="btn" onclick="filterGenericTable(this)">Tamam</button></div></details>`;});});}
+    function filterGenericTable(button){const d=button.closest("details"),t=button.closest("table");t._filters[d.dataset.index]=[...d.querySelectorAll("input[type=checkbox]:checked")].map(i=>i.value);[...t.rows].slice(1).forEach(r=>r.hidden=!Object.entries(t._filters).every(([i,vs])=>vs.includes(cellValue(r.cells[Number(i)]))));d.open=false;}
+    function sortGenericTable(button){const d=button.closest("details"),t=button.closest("table"),index=Number(d.dataset.index);const val=r=>{const str=cellValue(r.cells[index]);const m=str.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);if(m)return m[3]+m[2]+m[1];return str;};const rows=[...t.rows].slice(1).sort((a,b)=>Number(button.dataset.dir)*val(a).localeCompare(val(b),"tr",{numeric:true}));rows.forEach(r=>r.parentNode.appendChild(r));d.open=false;}
+    function hideGenericColumn(button){const d=button.closest("details"),t=button.closest("table"),index=Number(d.dataset.index);[...t.rows].forEach(r=>{if(r.cells[index])r.cells[index].hidden=true;});d.open=false;}
+    function restoreAllTableColumns(){document.querySelectorAll("section.on table td,section.on table th").forEach(c=>c.hidden=false);restoreColumns();}
+    document.addEventListener("toggle",event=>{const d=event.target;if(!d.matches?.(".column-filter")||!d.open)return;document.querySelectorAll(".column-filter[open]").forEach(other=>{if(other!==d)other.open=false;});const menu=d.querySelector(".column-menu"),rect=d.getBoundingClientRect();menu.style.position="fixed";menu.style.left=Math.max(8,Math.min(rect.left,innerWidth-270))+"px";menu.style.top=Math.max(8,Math.min(rect.bottom+4,innerHeight-menu.offsetHeight-8))+"px";},true);
+    new MutationObserver(enhanceTables).observe(document.querySelector("main"),{childList:true,subtree:true});
     init();
   </script>
 </html>
