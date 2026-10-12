@@ -1429,6 +1429,7 @@
       if (bucket === "tariff") return x.campaign === "Tarifeye Ek";
       return itemState(x) === bucket;
     }
+    function paymentMonth(value){const match=/^(\d{4})-(0[1-9]|1[0-2])(?:-\d{2})?$/.exec(String(value||""));return match?["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"][Number(match[2])-1]+" "+match[1]:"";}
     const productColumns = [
       { key: "shop", label: "Bayi", value: (x) => shopName(x.shop) },
       { key: "product", label: "Ürün", value: (x) => String(x.product || "—") },
@@ -1453,9 +1454,7 @@
         value: (x) =>
           x.paid_on
             ? "VDM’ye Ödendi" +
-              (x.paid_on === "Ödendi"
-                ? ""
-                : " (" + dateDisplay(x.paid_on) + ")")
+              (paymentMonth(x.paid_on) ? " ("+paymentMonth(x.paid_on)+")" : "")
             : "Ödenmedi",
       },
       { key: "vf", label: "Vodafone", value: vfStatus },
