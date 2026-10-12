@@ -25,3 +25,7 @@ Yayın öncesi yedek yenilenir. Yayın sonrası eski GNA tablolarının kayıtla
 Uygulama geri dönüşünde eski başlangıç komutu ve Function imajı kullanılır. Yeni tablolar silinmez; eski uygulama bunları kullanmadığı için mevcut tablo yapısıyla uyumludur. Veri geri yükleme yalnızca gerçek veri kaybı durumunda, son kullanıcı işlemleri değerlendirilerek GNA kapsamına uygulanır; tüm veritabanı körlemesine silinmez.
 
 Gerçek 279663 Excel dosyası bu oturuma sağlanmadı. Aynı Data başlıklarıyla hazırlanmış XLSX dosyasında sayısal/formattan gelen sıfırlı müşteri kodları ve tekrar aktarım tarayıcıyla test edildi. Gerçek müşteri kartlarını oluşturmak için yönetici Müşteri Cari Kartları ekranından gerçek dosyayı yükler.
+
+## Yayın sonucu
+
+2026-10-12: yeni Railway dağıtımı 20189cdb-8f3a-46e6-911b-76243064be8e SUCCESS durumunda. Canlı /health, mevcut yönetici girişi ve ilgili API'ler doğrulandı. Sekiz eski GNA tablosunun tüm içerikleri yayın öncesi yedekle aynı: 383 ürün, 41 eski içe aktarma kaydı, 40 yükleme geçmişi kaydı, mevcut kullanıcı ve oturumlar korundu. Kontrol oturumu kapatıldı; canlıda örnek müşteri veya ana cari kaydı oluşturulmadı. Bun 1.4.0 üzerinde 11 entegrasyon testi ve tarayıcı işlev kontrolü geçti.
