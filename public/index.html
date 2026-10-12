@@ -195,6 +195,56 @@
       outline: 3px solid #c91f37;
       outline-offset: 2px;
     }
+    .view-buttons {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin: 12px 0;
+    }
+    .column-menu {
+      background: white;
+      border: 1px solid #bbb;
+      padding: 10px;
+      min-width: 210px;
+    }
+    .column-options {
+      max-height: 220px;
+      overflow: auto;
+    }
+    .filter-choice {
+      display: flex;
+      gap: 5px;
+      align-items: center;
+      font-weight: normal;
+    }
+    .column-filter summary {
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .column-menu button {
+      margin: 3px;
+    }
+    #cariSettings details {
+      border: 1px solid #ddd;
+      padding: 15px;
+      border-radius: 10px;
+      margin: 14px 0;
+    }
+    #cariSettings summary {
+      font-weight: bold;
+      cursor: pointer;
+    }
+    td small {
+      display: block;
+      color: #666;
+    }
+    #cariSettings input,
+    #priceRows input {
+      max-width: 240px;
+    }
+    #cariSettings select {
+      max-width: 240px;
+    }
   </style>
   <div id="login" class="card">
     <h1>GNA Portalı</h1>
@@ -231,11 +281,11 @@
         ><button
           class="admin"
           onclick="
-            tab('accounts');
-            showAccounts();
+            tab('settings');
+            showSettings();
           "
         >
-          Ana Cariler</button
+          Cari Kayıt Ayarları</button
         ><button
           class="admin"
           onclick="
@@ -244,6 +294,14 @@
           "
         >
           İşlem Kayıtları</button
+        ><button
+          class="admin"
+          onclick="
+            tab('pricing');
+            showPricing();
+          "
+        >
+          Fiyatlama Listesi</button
         ><button class="admin" onclick="tab('upload')">Excel Yükle</button
         ><button class="admin" onclick="tab('users')">Kullanıcı Yönetimi</button
         ><button onclick="logout()">Çıkış</button>
@@ -260,9 +318,13 @@
           <h3>Bayi Carileri</h3>
           <div id="dealerlist"></div>
           <div id="productlist" hidden>
-            <button class="btn" onclick="showDealers()">← Bayilere dön</button>
+            <button class="btn" onclick="backFromProducts()">← Geri</button>
             <h2 id="dealerTitle"></h2>
+            <div id="productViews" class="view-buttons"></div>
             <div id="dealerAliases" class="admin"></div>
+            <button onclick="resetColumnFilters()">
+              Sütun filtrelerini temizle
+            </button>
             <input
               id="search"
               placeholder="Seri veya ürün ara"
@@ -288,6 +350,21 @@
             <div class="scroll" id="itemtable"></div>
           </div>
         </div>
+      </section>
+      <section id="settings">
+        <div class="card">
+          <h3>Cari Kayıt Ayarları</h3>
+          <div id="cariSettings"></div>
+        </div>
+      </section>
+      <section id="pricing">
+        <div class="card">
+          <h3>Fiyatlama Listesi</h3>
+          <div id="pricingContent"></div>
+        </div>
+      </section>
+      <section id="profitability">
+        <div class="card"><div id="profitContent"></div></div>
       </section>
       <section id="accounts">
         <div class="card">
@@ -325,6 +402,10 @@
           <div class="uploadgrid">
             <div class="uploadbox">
               <h3>1. Tekinler Çıkışları</h3>
+              <label
+                ><input id="onlyPrefix2" type="checkbox" checked /> Sadece 2 ile
+                başlayan serileri al</label
+              >
               <p>Ürün, seri ve bayi stok bilgileri</p>
               <input type="file" id="stockfile" accept=".xlsx,.xls" /><button
                 class="btn"
@@ -335,8 +416,11 @@
               <p id="stockmsg"></p>
             </div>
             <div class="uploadbox">
-              <h3>2. Ödenenler</h3>
-              <p>Seri numarası ve ödeme tarihi</p>
+              <h3>2. VDM’ye Ödenenler</h3>
+              <p>
+                Seriler tüm bayilerde eşleştirilir. Ödeme tarihi varsa dosyadan
+                alınır.
+              </p>
               <input type="file" id="paymentfile" accept=".xlsx,.xls" /><button
                 class="btn"
                 onclick="uploadFile('payment')"
@@ -347,7 +431,11 @@
             </div>
             <div class="uploadbox">
               <h3>3. Vodafone Aktivasyonları</h3>
-              <p>Kampanya ve cihaz eşleştirmeleri</p>
+              <p>
+                E: Cihaz Kampanya Adı · H: Seri / IMEI. AYLIK TAAHHUTLU
+                KAMPANYALAR → Tarifeye Ek; GNA BAYI CIHAZ KAMPANYASI → Peşin
+                Satış.
+              </p>
               <input
                 type="file"
                 id="activationfile"
@@ -357,6 +445,20 @@
               </button>
               <p id="activationmsg"></p>
             </div>
+          </div>
+          <div class="uploadbox">
+            <h3>4. VF Tarafından Ödenenler</h3>
+            <p>
+              Seri/IMEI ve varsa ödeme tarihi. Eşleşen VF bekleyenler listeden
+              çıkarılır.
+            </p>
+            <input id="vf_paymentfile" type="file" accept=".xlsx,.xls" /><button
+              class="btn"
+              onclick="uploadFile('vf_payment')"
+            >
+              VF Ödenenler Excel Yükle
+            </button>
+            <p id="vf_paymentmsg" role="status"></p>
           </div>
           <h3>Yüklenen Dosyalar</h3>
           <div class="scroll" id="importhistory"></div>
@@ -391,7 +493,12 @@
       accounts = [],
       links = [],
       customers = [],
-      selectedDealer = null;
+      selectedDealer = null,
+      directory = { dealers: [], groups: [] },
+      selectedGroup = null,
+      columnFilters = {},
+      sortField = null,
+      sortDirection = 1;
     const e = (x) =>
       String(x ?? "").replace(
         /[&<>"]/g,
@@ -435,7 +542,10 @@
         home: "Ana Panel",
         items: "Bayi Carileri",
         customers: "Müşteri Cari Kartları",
-        accounts: "Ana Cariler",
+        accounts: "Ana Cari Özeti",
+        settings: "Cari Kayıt Ayarları",
+        pricing: "Fiyatlama Listesi",
+        profitability: "Kârlılık",
         audit: "İşlem Kayıtları",
         vod: "Vodafone Alacakları",
         upload: "Excel Yükle",
@@ -476,6 +586,7 @@
       items = await api("items");
       dealerStats = await api("dealers");
       aliases = await api("aliases");
+      directory = await api("directory");
       if (me.role === "admin") {
         [accounts, links, customers] = await Promise.all([
           api("accounts"),
@@ -514,7 +625,7 @@
         [
           ...new Set(
             items
-              .filter((x) => !selectedDealer || x.shop === selectedDealer)
+              .filter((x) => contextShops().includes(x.shop))
               .map((x) => x.product)
               .filter(Boolean),
           ),
@@ -523,30 +634,143 @@
           .map((s) => "<option>" + e(s) + "</option>")
           .join("");
     }
+
+    function shopName(shop) {
+      return (
+        directory.dealers.find((d) => d.shop === shop)?.display_name || shop
+      );
+    }
+    function contextShops() {
+      if (selectedDealer) return [selectedDealer];
+      if (selectedGroup)
+        return directory.dealers
+          .filter(
+            (d) => d.active && String(d.account_id) === String(selectedGroup),
+          )
+          .map((d) => d.shop);
+      return [];
+    }
+    function dealerButton(d) {
+      return (
+        '<button class="dealer-card" data-shop="' +
+        e(d.shop) +
+        '" onclick="openDealer(this.dataset.shop)">' +
+        e(d.display_name) +
+        "</button>"
+      );
+    }
     function showDealers() {
       selectedDealer = null;
+      selectedGroup = null;
+      columnFilters = {};
       dealerlist.hidden = false;
       productlist.hidden = true;
       dealerlist.innerHTML =
-        '<input id="dealerSearch" aria-label="Bayi ara" placeholder="Bayi ara" oninput="filterDealers()"><div id="dealerRows"></div>';
+        '<input id="dealerSearch" aria-label="Bayi veya ana cari ara" placeholder="Bayi veya ana cari ara" oninput="filterDealers()"><div id="dealerRows"></div>';
       filterDealers();
     }
     function filterDealers() {
       const q = dealerSearch.value.toLocaleLowerCase("tr");
-      const ds = dealerStats.filter((d) =>
-        d.shop.toLocaleLowerCase("tr").includes(q),
+      const ds = directory.dealers.filter(
+        (d) =>
+          d.active &&
+          [d.shop, d.display_name].some((x) =>
+            x.toLocaleLowerCase("tr").includes(q),
+          ),
+      );
+      const groups = directory.groups.filter(
+        (a) =>
+          a.active &&
+          (a.name.toLocaleLowerCase("tr").includes(q) ||
+            directory.dealers.some(
+              (d) =>
+                d.active &&
+                String(d.account_id) === String(a.id) &&
+                d.display_name.toLocaleLowerCase("tr").includes(q),
+            )),
       );
       dealerRows.innerHTML =
-        ds
-          .map(
+        (groups.length
+          ? "<h4>Ana Cariler</h4>" +
+            groups
+              .map(
+                (a) =>
+                  '<button class="dealer-card" data-id="' +
+                  e(a.id) +
+                  '" onclick="showDealerGroup(this.dataset.id)"><b>' +
+                  e(a.name) +
+                  "</b><small>Ana cari · Alt bayileri göster</small></button>",
+              )
+              .join("")
+          : "") +
+          (ds.length
+            ? "<h4>Bayiler (tek tek)</h4>" + ds.map(dealerButton).join("")
+            : "") || "<p>Bayi veya ana cari bulunamadı.</p>";
+    }
+    function showDealerGroup(id) {
+      const a = directory.groups.find((a) => String(a.id) === String(id));
+      if (!a || !a.active) return;
+      selectedGroup = String(id);
+      selectedDealer = null;
+      dealerlist.hidden = false;
+      productlist.hidden = true;
+      dealerlist.innerHTML =
+        '<button class="btn" onclick="showDealers()">← Bayi listesine dön</button><h2>' +
+        e(a.name) +
+        '</h2><p>Alt bayiler</p><input id="groupSearch" aria-label="Alt bayi ara" placeholder="Alt bayi ara" oninput="filterGroupDealers()"><button data-id="' +
+        e(a.id) +
+        '" onclick="showGroupProducts(this.dataset.id)">Tüm alt bayilerin ürünleri</button>' +
+        (me.role === "admin"
+          ? '<button data-id="' +
+            e(a.id) +
+            '" onclick="viewAccountSummary(this.dataset.id)">Ana Cari Özeti</button>'
+          : "") +
+        '<div id="groupDealerRows"></div>';
+      filterGroupDealers();
+    }
+    function filterGroupDealers() {
+      const q = groupSearch.value.toLocaleLowerCase("tr");
+      groupDealerRows.innerHTML =
+        directory.dealers
+          .filter(
             (d) =>
-              '<button class="dealer-card" data-shop="' +
-              e(d.shop) +
-              '" onclick="openDealer(this.dataset.shop)">' +
-              e(d.shop) +
-              "</button>",
+              d.active &&
+              String(d.account_id) === String(selectedGroup) &&
+              d.display_name.toLocaleLowerCase("tr").includes(q),
           )
-          .join("") || "<p>Bayi bulunamadı.</p>";
+          .map(dealerButton)
+          .join("") || "<p>Alt bayi bulunamadı.</p>";
+    }
+    function showGroupProducts(id) {
+      selectedGroup = String(id);
+      selectedDealer = null;
+      showProducts();
+      dealerTitle.textContent =
+        directory.groups.find((a) => String(a.id) === String(id))?.name ||
+        "Ana Cari";
+      dealerAliases.innerHTML = "";
+      resetProductControls();
+      draw();
+    }
+    function backFromProducts() {
+      if (selectedGroup) showDealerGroup(selectedGroup);
+      else showDealers();
+    }
+    function viewAccountSummary(id) {
+      tab("accounts");
+      openAccount(id);
+    }
+    function resetProductControls() {
+      productBucket = "active";
+      search.value = "";
+      shopfilter.value = selectedDealer || "";
+      productfilter.value = "";
+      vodfilter.value = "";
+      salefilter.value = "";
+      payfilter.value = "";
+      columnFilters = {};
+      sortField = null;
+      fillProducts();
     }
 
     async function addAlias(shop) {
@@ -562,22 +786,14 @@
       }
     }
     function renderDealerAliases(shop) {
-      if (me.role !== "admin") return;
-      dealerAliases.innerHTML =
-        "<details><summary>Bayi takma adları / mevcut şube adları</summary><p>" +
-        aliases
-          .filter((a) => a.shop === shop)
-          .map((a) => e(a.alias))
-          .join(", ") +
-        '</p><input data-shop="' +
-        e(shop) +
-        '" placeholder="Takma ad ekle"><button data-shop="' +
-        e(shop) +
-        '" onclick="addAlias(this.dataset.shop)">Ekle</button></details>';
+      dealerAliases.textContent = aliases
+        .filter((a) => a.shop === shop)
+        .map((a) => a.alias)
+        .join(", ");
     }
     function showCustomerCards() {
       customerCards.innerHTML =
-        '<input id="customerSearch" aria-label="Müşteri ara" placeholder="Müşteri adı, kodu veya ünvanı ara" oninput="filterCustomerCards()"><div class="uploadbox"><h4>279663 satış raporundan müşteri aktar</h4><p>Data sayfası: MusteriKisaAd, MusteriKod, MusteriUnvan</p><input id="customerFile" type="file" accept=".xlsx,.xls"><button class="btn" onclick="importCustomers()">Müşteri Kartlarını Aktar</button><p id="customerImportMessage" role="status"></p></div><div id="customerRows"></div>';
+        '<input id="customerSearch" aria-label="Müşteri ara" placeholder="Müşteri adı, kodu veya ünvanı ara" oninput="filterCustomerCards()"><div id="customerRows"></div>';
       filterCustomerCards();
     }
     function filterCustomerCards() {
@@ -640,6 +856,7 @@
     }
     async function importCustomers() {
       const msg = customerImportMessage;
+      msg.textContent = "Dosya okunuyor…";
       try {
         const f = customerFile.files[0];
         if (!f) throw Error("Dosya seçin");
@@ -659,20 +876,28 @@
           )
         )
           throw Error("Müşteri alanları boş; dosya işlenmedi");
+        const batch = await api("uploads", "POST", {
+          kind: "customers",
+          filename: f.name,
+        });
         let added = 0,
           skipped = 0,
           conflicts = [];
         for (let i = 0; i < rows.length; i += 2000) {
           const r = await api("customers/import", "POST", {
             filename: f.name,
+            batch_id: batch.batch_id,
             rows: rows.slice(i, i + 2000),
           });
           added += r.added;
           skipped += r.skipped;
           conflicts.push(...r.conflicts);
         }
+        await api("uploads/" + batch.batch_id + "/complete", "POST");
         customers = await api("customers");
-        filterCustomerCards();
+        if (document.getElementById("customerRows")) filterCustomerCards();
+        renderCustomerSettings();
+        await refreshImports();
         msg.textContent =
           "Yeni kart: " +
           added +
@@ -687,63 +912,64 @@
       }
     }
     function showAccounts() {
-      accountCards.innerHTML =
-        '<label>Yeni ana cari <input id="accountName" placeholder="Ana cari adı"></label><button class="btn" onclick="createAccount()">Oluştur</button><p id="accountMessage" role="status"></p><div id="accountRows"></div>';
+      accountCards.innerHTML = '<div id="accountRows"></div>';
       renderAccounts();
     }
     function renderAccounts() {
       accountRows.innerHTML =
         accounts
+          .filter((a) => a.active)
           .map(
             (a) =>
               '<button class="dealer-card" data-id="' +
               e(a.id) +
-              '" onclick="openAccount(this.dataset.id)"><b>' +
+              '" onclick="openAccount(this.dataset.id)">' +
               e(a.name) +
-              "</b><small>" +
-              a.dealer_count +
-              " bayi · " +
-              a.product_count +
-              " ürün · " +
-              money(a.receivable_total) +
-              " Vodafone alacağı</small></button>",
+              "</button>",
           )
-          .join("") ||
-        "<p>Henüz ana cari yok. Ana cari oluşturup bayileri bağlayabilirsiniz.</p>";
+          .join("") || "<p>Ana cari bulunamadı.</p>";
     }
     async function loadAccounts() {
       [accounts, links] = await Promise.all([
         api("accounts"),
         api("dealer-accounts"),
       ]);
+      directory = await api("directory");
     }
     async function createAccount() {
       try {
         await api("accounts", "POST", { name: accountName.value });
         await loadAccounts();
-        accountName.value = "";
-        accountMessage.textContent = "Ana cari oluşturuldu";
-        renderAccounts();
+        showSettings();
+        settingsMessage.textContent = "Ana cari oluşturuldu";
       } catch (err) {
-        accountMessage.textContent = err.message;
+        settingsMessage.textContent = err.message;
       }
     }
+
     function accountOptions(id) {
       return (
         '<option value="">Bağımsız bayi / Bağlantıyı ayır</option>' +
         accounts
+          .filter((a) => a.active || String(a.id) === String(id))
           .map(
             (a) =>
               '<option value="' +
               e(a.id) +
               '"' +
               (String(a.id) === String(id) ? " selected" : "") +
+              (!a.active ? " disabled" : "") +
               ">" +
               e(a.name) +
+              (!a.active ? " (Kapalı)" : "") +
               "</option>",
           )
           .join("")
       );
+    }
+    function returnToGroup(id) {
+      tab("items");
+      showDealerGroup(id);
     }
     function openDealerFromAccount(shop) {
       tab("items");
@@ -752,9 +978,13 @@
     function openAccount(id) {
       const a = accounts.find((a) => String(a.id) === String(id));
       if (!a) return;
-      const attached = links.filter((l) => String(l.account_id) === String(id));
+      const attached = directory.dealers.filter(
+        (d) => String(d.account_id) === String(id),
+      );
       accountCards.innerHTML =
-        '<button class="btn" onclick="showAccounts()">← Ana carilere dön</button><h2>' +
+        '<button class="btn" data-id="' +
+        e(id) +
+        '" onclick="returnToGroup(this.dataset.id)">← Alt bayilere dön</button><h2>' +
         e(a.name) +
         '</h2><div class="totals">' +
         [
@@ -776,45 +1006,10 @@
               "</h3></div>",
           )
           .join("") +
-        '</div><p class="muted">Tutarlar mevcut ürün fiyatlarına dayanır. Vodafone alacağı: ödenmiş ve tarifeye ek satılmış ürünler. Bayi kayıtları taşınmaz veya kopyalanmaz.</p><h3>Bağlı bayiler</h3>' +
-        attached
-          .map(
-            (l) =>
-              '<div class="customer-row"><button data-shop="' +
-              e(l.shop) +
-              '" onclick="openDealerFromAccount(this.dataset.shop)">' +
-              e(l.shop) +
-              '</button><select aria-label="' +
-              e(l.shop) +
-              ' ana cari" data-shop="' +
-              e(l.shop) +
-              '" data-id="' +
-              e(id) +
-              '" onchange="saveDealerLink(this.dataset.shop,this.value,this.dataset.id)">' +
-              accountOptions(id) +
-              "</select></div>",
-          )
-          .join("") +
-        '<h3>Bayi bağla veya başka ana cariden taşı</h3><select id="attachDealer"><option value="">Bayi seçin</option>' +
-        dealerStats
-          .filter((d) => !attached.some((l) => l.shop === d.shop))
-          .map((d) => "<option>" + e(d.shop) + "</option>")
-          .join("") +
-        '</select><button class="btn" data-id="' +
-        e(id) +
-        '" onclick="saveDealerLink(attachDealer.value,this.dataset.id,this.dataset.id)">Bağla</button><p id="linkMessage" role="status"></p>';
+        '</div><p class="muted">Tutarlar mevcut ürün fiyatlarına dayanır; Vodafone alacağı ödenmiş ve tarifeye ek satılmış ürünlerdir.</p><h3>Bağlı bayiler</h3>' +
+        attached.map(dealerButton).join("");
     }
-    async function saveDealerLink(shop, id, viewId) {
-      try {
-        await api("dealer-accounts", "PUT", { shop, account_id: id || null });
-        await loadAccounts();
-        openAccount(viewId);
-      } catch (err) {
-        const msg = document.getElementById("linkMessage");
-        if (msg) msg.textContent = err.message;
-        else alert(err.message);
-      }
-    }
+
     async function showAudit() {
       try {
         const rows = await api("audit");
@@ -841,18 +1036,13 @@
       productlist.hidden = false;
     }
     function openDealer(n) {
-      if (!dealerStats.some((d) => d.shop === n)) return;
+      if (!directory.dealers.some((d) => d.shop === n)) return;
       selectedDealer = n;
+      tab("items");
       showProducts();
-      dealerTitle.textContent = n;
+      dealerTitle.textContent = shopName(n);
       renderDealerAliases(n);
-      search.value = "";
-      shopfilter.value = n;
-      productfilter.value = "";
-      vodfilter.value = "";
-      salefilter.value = "";
-      payfilter.value = "";
-      fillProducts();
+      resetProductControls();
       draw();
     }
 
@@ -860,13 +1050,19 @@
       let q = (search.value || "").toLocaleLowerCase("tr"),
         filtered = items.filter(
           (x) =>
-            selectedDealer !== null &&
-            x.shop === selectedDealer &&
+            contextShops().includes(x.shop) &&
+            (productBucket === "vf"
+              ? vfWaiting(x)
+              : itemState(x) === productBucket) &&
             (!productfilter.value || x.product === productfilter.value) &&
             (!vodfilter.value ||
               (vodfilter.value === "waiting"
-                ? !!x.paid_on && x.campaign === "Tarifeye Ek"
-                : !(x.paid_on && x.campaign === "Tarifeye Ek"))) &&
+                ? !!x.paid_on && x.campaign === "Tarifeye Ek" && !x.vf_paid_on
+                : !(
+                    x.paid_on &&
+                    x.campaign === "Tarifeye Ek" &&
+                    !x.vf_paid_on
+                  ))) &&
             (!salefilter.value ||
               (x.campaign || "Stokta") === salefilter.value) &&
             (!payfilter.value ||
@@ -877,7 +1073,28 @@
                 .includes(q),
             ),
         );
-      let v = items.filter((x) => x.paid_on && x.campaign === "Tarifeye Ek");
+      filtered = filtered.filter((x) =>
+        Object.entries(columnFilters).every(([key, values]) =>
+          values.includes(productColumns.find((c) => c.key === key).value(x)),
+        ),
+      );
+      if (sortField) {
+        const c = productColumns.find((c) => c.key === sortField);
+        filtered.sort(
+          (a, b) =>
+            sortDirection *
+            (sortField === "price"
+              ? Number(a.price) - Number(b.price)
+              : String(c.sort ? c.sort(a) : c.value(a)).localeCompare(
+                  String(c.sort ? c.sort(b) : c.value(b)),
+                  "tr",
+                  { numeric: true },
+                )),
+        );
+      }
+      let v = items.filter(
+        (x) => x.paid_on && x.campaign === "Tarifeye Ek" && !x.vf_paid_on,
+      );
       summary.innerHTML =
         "<h3>Toplam ürün: " +
         items.length +
@@ -888,22 +1105,7 @@
         "</p><p>Vodafone alacağı: " +
         money(v.reduce((s, x) => s + Number(x.price || 0), 0)) +
         "</p>";
-      itemtable.innerHTML = table(
-        ["Bayi", "Ürün", "Seri", "Fiyat", "Satış", "Ödeme", "Vodafone"],
-        filtered.map((x) => [
-          x.shop,
-          x.product,
-          x.serial,
-          money(x.price),
-          x.campaign || "Stokta",
-          x.paid_on
-            ? "Ödendi (" + x.paid_on + ")"
-            : x.campaign === "Tarifeye Ek"
-              ? ""
-              : "Ödenmedi",
-          x.paid_on && x.campaign === "Tarifeye Ek" ? "Para Bekleniyor" : "",
-        ]),
-      );
+      renderProductTable(filtered);
       vodtable.innerHTML = table(
         ["Bayi", "Seri", "Tutar", "Ödeme"],
         v.map((x) => [x.shop, x.serial, money(x.price), x.paid_on]),
@@ -911,7 +1113,7 @@
       waittable.innerHTML = table(
         ["Bayi", "Seri", "Ödeme", "Satış"],
         items
-          .filter((x) => x.paid_on && x.campaign !== "Tarifeye Ek")
+          .filter((x) => x.paid_on && !x.campaign && !x.vf_paid_on)
           .map((x) => [x.shop, x.serial, x.paid_on, x.campaign || "Stokta"]),
       );
     }
@@ -948,33 +1150,85 @@
             .slice(0, 10)
         : str(x);
     async function refreshImports() {
-      let rows = await api("imports");
-      let last = (k) => rows.find((r) => r.kind === k);
-      let date = (r) =>
-        r && r.created_at
+      const rows = await api("imports");
+      const last = (k) =>
+        rows.find((r) => r.kind === k && !r.reverted_at && r.completed_at);
+      const date = (r) =>
+        r?.created_at
           ? new Date(r.created_at).toLocaleString("tr-TR")
-          : "Tarih bilgisi mevcut değil";
+          : "Henüz yüklenmedi";
       lastupdates.innerHTML =
-        "<p><b>Alım raporu en son güncelleme:</b> " +
+        "<p>Alım raporu en son güncelleme: " +
         date(last("stock")) +
-        "</p><p><b>Aktivasyon raporu en son güncelleme:</b> " +
+        "</p><p>Aktivasyon raporu en son güncelleme: " +
         date(last("activation")) +
-        "</p><p><b>Ödenenler en son güncelleme:</b> " +
+        "</p><p>Ödenenler en son güncelleme: " +
         date(last("payment")) +
         "</p>";
-      importhistory.innerHTML = table(
-        ["Tarih", "Dosya", "Rapor"],
-        rows.map((r) => [
-          date(r),
-          r.filename,
-          { stock: "Alım", activation: "Aktivasyon", payment: "Ödenenler" }[
-            r.kind
-          ] || r.kind,
-        ]),
-      );
+      importhistory.innerHTML =
+        "<table><tr><th>Tarih</th><th>Dosya</th><th>Rapor</th><th>Durum</th><th>İşlem</th></tr>" +
+        rows
+          .map(
+            (r) =>
+              "<tr><td>" +
+              date(r) +
+              "</td><td>" +
+              e(r.filename) +
+              "</td><td>" +
+              e(
+                {
+                  stock: "Alım",
+                  activation: "Aktivasyon",
+                  payment: "VDM’ye Ödenenler",
+                  vf_payment: "VF’den Ödenenler",
+                  customers: "Müşteri Kartları",
+                }[r.kind] || r.kind,
+              ) +
+              "</td><td>" +
+              (r.reverted_at
+                ? "Geri alındı"
+                : r.reversible
+                  ? r.completed_at
+                    ? "Tamamlandı"
+                    : "Tamamlanmamış yükleme"
+                  : "Eski yükleme – işlem kaydı yok") +
+              "</td><td>" +
+              (r.reversible && !r.reverted_at
+                ? '<button data-id="' +
+                  e(r.id) +
+                  '" onclick="undoUpload(this)">Geri Al</button>'
+                : r.reverted_at
+                  ? ""
+                  : '<span title="Eski yüklemede hangi seri/alanın değiştiği saklanmadığı için güvenli geri alınamaz">Geri alma desteklenmiyor</span>') +
+              "</td></tr>",
+          )
+          .join("") +
+        '</table><p id="undoMessage" role="status"></p>';
     }
+    async function undoUpload(button) {
+      if (
+        !confirm(
+          "Bu dosyanın eklediği kayıtlar kaldırılacak; değiştirdiği alanlar eski değerlerine dönecek. Geri alınsın mı?",
+        )
+      )
+        return;
+      button.disabled = true;
+      undoMessage.textContent = "Geri alınıyor…";
+      try {
+        const r = await api("uploads/" + button.dataset.id + "/undo", "POST");
+        await refresh();
+        await refreshImports();
+        undoMessage.textContent =
+          "Dosya geri alındı. Geri döndürülen işlem: " + r.undone;
+      } catch (err) {
+        undoMessage.textContent = err.message;
+        button.disabled = false;
+      }
+    }
+
     async function uploadFile(type) {
       let msg = document.getElementById(type + "msg");
+      msg.textContent = "Dosya okunuyor…";
       try {
         let f = document.getElementById(type + "file").files[0];
         if (!f) throw Error("Dosya seçin");
@@ -996,39 +1250,57 @@
                   Number(
                     String(pick(o, ["BirimFiyat"], 41)).replace(",", "."),
                   ) * 1.16,
-                shipped: dt(pick(o, ["IslemTarihi"], 9)),
+                shipped: dt(
+                  pick(
+                    o,
+                    [
+                      "IslemTarihi",
+                      "İşlem Tarihi",
+                      "Alım Tarihi",
+                      "Alış Tarihi",
+                    ],
+                    9,
+                  ),
+                ),
               };
-            if (type === "payment")
+            if (type === "payment" || type === "vf_payment")
               return {
                 serial: str(pick(o, ["SeriNo", "Seri No", "IMEI"])),
                 paid_on: dt(
-                  pick(o, ["Ödeme Tarihi", "OdemeTarihi", "Tahsilat Tarihi"]),
+                  pick(o, [
+                    "Ödeme Tarihi",
+                    "OdemeTarihi",
+                    "Tahsilat Tarihi",
+                    "VF Ödeme Tarihi",
+                    "Tarih",
+                  ]),
                 ),
               };
-            let c = str(
-              pick(o, ["Cihaz Kampanya Adı", "Kampanya"], 4),
-            ).toLocaleUpperCase("tr");
+            let c = str(pick(o, ["Cihaz Kampanya Adı", "Kampanya"], 4));
             return {
               shop: str(
                 pick(o, ["Bayi Adı", "Bayi", "Şube", "Bayi Ünvanı"], 2),
               ),
               serial: str(pick(o, ["Cihaz IMEI", "IMEI", "SeriNo"], 7)),
-              campaign: c.includes("AYLIK TAAHHUTLU")
-                ? "Tarifeye Ek"
-                : c.includes("GNA BAYI CIHAZ")
-                  ? "Peşin Satış"
-                  : "",
-              sold: dt(pick(o, ["Satış Tarihi", "Tarih"], 1)),
+              campaign: activationCampaign(c),
+              sold: dt(
+                pick(
+                  o,
+                  [
+                    "Aktivasyon Tarihi",
+                    "AktivasyonTarihi",
+                    "Satış Tarihi",
+                    "Tarih",
+                  ],
+                  1,
+                ),
+              ),
             };
           })
           .filter((x) => x.serial);
         if (!data.length)
           throw Error(
             "Seri numarası bulunan kayıt yok. Dosya başlıklarını kontrol edin",
-          );
-        if (type === "payment" && data.some((x) => !x.paid_on))
-          throw Error(
-            "Ödenenler Excelinde SeriNo ve Ödeme Tarihi sütunları zorunlu. Yanlış kayıt yapmamak için yükleme durduruldu.",
           );
         if (
           type === "stock" &&
@@ -1037,28 +1309,362 @@
           throw Error(
             "Tekinler Excelinde bayi veya fiyat sütunu eksik. Yükleme durduruldu.",
           );
+        const batch = await api("uploads", "POST", {
+          kind: type,
+          filename: f.name,
+          only_prefix_2: type === "stock" && onlyPrefix2.checked,
+        });
         let added = 0,
-          skipped = 0;
+          skipped = 0,
+          issues = [];
         for (let i = 0; i < data.length; i += 2000) {
           let r = await api("import", "POST", {
             kind: type,
             filename: f.name,
+            batch_id: batch.batch_id,
             rows: data.slice(i, i + 2000),
           });
           added += r.added;
           skipped += r.skipped;
+          issues.push(...(r.issues || []));
           msg.textContent =
             "İşleniyor: " +
             Math.min(i + 2000, data.length) +
             " / " +
             data.length;
         }
-        msg.textContent = "Güncellendi: " + added + " · Atlandı: " + skipped;
+        await api("uploads/" + batch.batch_id + "/complete", "POST");
+        msg.textContent =
+          "Güncellendi: " +
+          added +
+          " · Atlandı: " +
+          skipped +
+          (issues.length
+            ? " · Eşleşme sorunları: " +
+              issues.map((x) => x.serial + ": " + x.reason).join("; ")
+            : "");
         await refresh();
       } catch (x) {
         msg.textContent = "Hata: " + x.message;
       }
     }
+    let productBucket = "active",
+      profitShop = "",
+      prices = [];
+    const dateDisplay = (value) =>
+      !value
+        ? "—"
+        : /^\d{4}-\d{2}-\d{2}$/.test(value)
+          ? value.split("-").reverse().join(".")
+          : String(value);
+    function activationCampaign(value) {
+      const key = norm(value);
+      return key.includes(norm("AYLIK TAAHHUTLU KAMPANYALAR"))
+        ? "Tarifeye Ek"
+        : key.includes(norm("GNA BAYI CIHAZ KAMPANYASI"))
+          ? "Peşin Satış"
+          : "";
+    }
+    function itemState(x) {
+      if (!x.paid_on) return "active";
+      if (x.campaign === "Peşin Satış" || x.vf_paid_on) return "closed";
+      return "paid";
+    }
+    function vfWaiting(x) {
+      return !!x.paid_on && x.campaign === "Tarifeye Ek" && !x.vf_paid_on;
+    }
+    function vfStatus(x) {
+      return x.vf_paid_on
+        ? "VF’den Ödendi"
+        : vfWaiting(x)
+          ? "VF’den Ödeme Bekleniyor"
+          : x.paid_on && x.campaign === "Peşin Satış"
+            ? "Peşin / Tamamlandı"
+            : "—";
+    }
+    const productColumns = [
+      { key: "shop", label: "Bayi", value: (x) => shopName(x.shop) },
+      { key: "product", label: "Ürün", value: (x) => String(x.product || "—") },
+      { key: "serial", label: "Seri", value: (x) => String(x.serial) },
+      { key: "price", label: "Fiyat", value: (x) => money(x.price) },
+      {
+        key: "shipped",
+        label: "Alım Tarihi",
+        value: (x) => dateDisplay(x.shipped),
+        sort: (x) => x.shipped || "",
+      },
+      {
+        key: "sold",
+        label: "Aktivasyon Tarihi",
+        value: (x) => dateDisplay(x.sold),
+        sort: (x) => x.sold || "",
+      },
+      { key: "campaign", label: "Satış", value: (x) => x.campaign || "Stokta" },
+      {
+        key: "paid",
+        label: "Ödeme",
+        value: (x) =>
+          x.paid_on
+            ? "VDM’ye Ödendi" +
+              (x.paid_on === "Ödendi"
+                ? ""
+                : " (" + dateDisplay(x.paid_on) + ")")
+            : "Ödenmedi",
+      },
+      { key: "vf", label: "Vodafone", value: vfStatus },
+    ];
+    function renderProductTable(rows) {
+      const context = items.filter((x) => contextShops().includes(x.shop));
+      const filterSource=context.filter(x=>productBucket==='vf'?vfWaiting(x):itemState(x)===productBucket);
+      productViews.innerHTML =
+        [
+          [
+            "active",
+            "Bayi Ürünleri",
+            context.filter((x) => itemState(x) === "active").length,
+          ],
+          [
+            "paid",
+            "VDM’ye Ödenenler",
+            context.filter((x) => itemState(x) === "paid").length,
+          ],
+          ["vf", "VF Ödeme Bekleyenler", context.filter(vfWaiting).length],
+          [
+            "closed",
+            "Tamamlananlar",
+            context.filter((x) => itemState(x) === "closed").length,
+          ],
+        ]
+          .map(
+            ([key, label, n]) =>
+              `<button class="${productBucket === key ? "btn" : ""}" data-bucket="${key}" onclick="changeProductBucket(this.dataset.bucket)">${label} (${n})</button>`,
+          )
+          .join("") +
+        `<button ${selectedDealer ? "" : "disabled"} onclick="openProfitability()">Kârlılık</button>`;
+      const head = productColumns
+        .map((c) => {
+          const values = [...new Set(filterSource.map(c.value))].sort((a, b) =>
+            a.localeCompare(b, "tr", { numeric: true }),
+          );
+          const active = columnFilters[c.key];
+          return `<th><details class="column-filter" id="filter-${c.key}"><summary>${c.label} ${active ? "●" : "▼"}</summary><div class="column-menu"><input aria-label="${c.label} filtresinde ara" placeholder="Değer ara" oninput="searchColumnOptions(this)"><div><button data-key="${c.key}" data-direction="1" onclick="setColumnSort(this)">Artan</button><button data-key="${c.key}" data-direction="-1" onclick="setColumnSort(this)">Azalan</button></div><button onclick="selectColumnOptions(this,true)">Tümünü seç</button><button onclick="selectColumnOptions(this,false)">Temizle</button><div class="column-options">${values.map((v) => `<label class="filter-choice"><input type="checkbox" value="${e(v)}" ${!active || active.includes(v) ? "checked" : ""}><span>${e(v)}</span></label>`).join("")}</div><button class="btn" data-key="${c.key}" onclick="applyColumnFilter(this)">Uygula</button></div></details></th>`;
+        })
+        .join("");
+      itemtable.innerHTML = `<table><thead><tr>${head}</tr></thead><tbody>${rows.map((x) => "<tr>" + productColumns.map((c) => "<td>" + e(c.value(x)) + "</td>").join("") + "</tr>").join("")}</tbody></table><p class="muted">Gösterilen kayıt: ${rows.length}</p>`;
+    }
+    function searchColumnOptions(input) {
+      const q = input.value.toLocaleLowerCase("tr");
+      input
+        .closest("details")
+        .querySelectorAll(".filter-choice")
+        .forEach(
+          (label) =>
+            (label.hidden = !label.textContent
+              .toLocaleLowerCase("tr")
+              .includes(q)),
+        );
+    }
+    function selectColumnOptions(button, checked) {
+      button
+        .closest("details")
+        .querySelectorAll("input[type=checkbox]")
+        .forEach((input) => (input.checked = checked));
+    }
+    function applyColumnFilter(button) {
+      columnFilters[button.dataset.key] = [
+        ...button
+          .closest("details")
+          .querySelectorAll("input[type=checkbox]:checked"),
+      ].map((input) => input.value);
+      draw();
+    }
+    function setColumnSort(button) {
+      sortField = button.dataset.key;
+      sortDirection = Number(button.dataset.direction);
+      draw();
+    }
+    function resetColumnFilters() {
+      columnFilters = {};
+      sortField = null;
+      draw();
+    }
+    function changeProductBucket(bucket) {
+      productBucket = bucket;
+      columnFilters = {};
+      draw();
+    }
+    async function loadSettings() {
+      [accounts, links, customers, directory] = await Promise.all([
+        api("accounts"),
+        api("dealer-accounts"),
+        api("customers"),
+        api("directory"),
+      ]);
+    }
+    const stateOptions = (active) =>
+      `<option value="true" ${active ? "selected" : ""}>Açık</option><option value="false" ${!active ? "selected" : ""}>Kapalı</option>`;
+    function showSettings() {
+      cariSettings.innerHTML = `<p class="muted">Açma, kapatma, düzeltme ve bayi bağlantıları burada yönetilir. Kapatılan carilerin ürün ve işlem geçmişi silinmez.</p><p id="settingsMessage" role="status"></p><details open><summary>Ana Cari Kayıtları</summary><input id="accountName" placeholder="Yeni ana cari adı"><button class="btn" onclick="createAccount()">Ana Cari Aç</button><div class="scroll"><table><tr><th>Ana Cari</th><th>Durum</th><th>İşlem</th></tr>${accounts.map((a) => `<tr data-id="${e(a.id)}"><td><input class="setting-name" aria-label="Ana cari adı" value="${e(a.name)}"></td><td><select class="setting-active">${stateOptions(a.active)}</select></td><td><button onclick="saveAccountSetting(this)">Kaydet</button></td></tr>`).join("")}</table></div></details><details open><summary>Bayi Kayıtları ve Ana Cari Bağlantıları</summary><input id="newDealerName" placeholder="Yeni bayi adı"><button class="btn" onclick="createDealerSetting()">Bayi Cari Aç</button><p class="muted">Görünen ad değiştirilebilir; eski ürün kayıtlarının bayi kimliği korunur.</p><div class="scroll"><table><tr><th>Bayi</th><th>Durum</th><th>Bağlı Ana Cari</th><th>İşlem</th></tr>${directory.dealers.map((d) => `<tr data-shop="${e(d.shop)}"><td><input class="setting-name" aria-label="Bayi adı" value="${e(d.display_name)}"><small>${e(d.shop)}</small></td><td><select class="setting-active">${stateOptions(d.active)}</select></td><td><select class="setting-account">${accountOptions(d.account_id)}</select><button onclick="saveLinkSetting(this)">Bağlantıyı Kaydet</button></td><td><button onclick="saveDealerSetting(this)">Ad / Durum Kaydet</button></td></tr>`).join("")}</table></div></details><details open><summary>Müşteri Cari Kayıtları</summary><input id="newCustomerCode" placeholder="Müşteri kodu"><input id="newCustomerName" placeholder="Kısa ad"><input id="newCustomerTitle" placeholder="Ünvan"><button class="btn" onclick="createCustomerSetting()">Müşteri Cari Aç</button><div class="uploadbox"><h4>279663 Excel’den Müşteri Aktar</h4><p>Data: MusteriKisaAd, MusteriKod, MusteriUnvan</p><input id="customerFile" type="file" accept=".xlsx,.xls"><button class="btn" onclick="importCustomers()">Müşteri Kartlarını Aktar</button><p id="customerImportMessage" role="status"></p></div><div id="customerSettingRows" class="scroll"></div></details>`;
+      renderCustomerSettings();
+    }
+    function renderCustomerSettings() {
+      const target = document.getElementById("customerSettingRows");
+      if (!target) return;
+      target.innerHTML = `<table><tr><th>Kod</th><th>Kısa Ad</th><th>Ünvan</th><th>Durum</th><th>İşlem</th></tr>${customers.map((c) => `<tr data-code="${e(c.code)}"><td>${e(c.code)}</td><td><input class="setting-name" value="${e(c.short_name)}"></td><td><input class="setting-title" value="${e(c.title)}"></td><td><select class="setting-active">${stateOptions(c.active)}</select></td><td><button onclick="saveCustomerSetting(this)">Kaydet</button></td></tr>`).join("")}</table>`;
+    }
+    async function settingsAction(action) {
+      try {
+        await action();
+        await loadSettings();
+        showSettings();
+        settingsMessage.textContent = "Cari ayarları kaydedildi";
+      } catch (err) {
+        settingsMessage.textContent = err.message;
+      }
+    }
+    async function saveAccountSetting(button) {
+      const row = button.closest("tr");
+      await settingsAction(() =>
+        api("accounts/" + row.dataset.id, "PATCH", {
+          name: row.querySelector(".setting-name").value,
+          active: row.querySelector(".setting-active").value === "true",
+        }),
+      );
+    }
+    async function createDealerSetting() {
+      const name = newDealerName.value.trim();
+      await settingsAction(() =>
+        api("dealer-profiles", "PUT", {
+          shop: name,
+          display_name: name,
+          active: true,
+        }),
+      );
+    }
+    async function saveDealerSetting(button) {
+      const row = button.closest("tr");
+      await settingsAction(() =>
+        api("dealer-profiles", "PUT", {
+          shop: row.dataset.shop,
+          display_name: row.querySelector(".setting-name").value,
+          active: row.querySelector(".setting-active").value === "true",
+        }),
+      );
+    }
+    async function saveLinkSetting(button) {
+      const row = button.closest("tr");
+      await settingsAction(() =>
+        api("dealer-accounts", "PUT", {
+          shop: row.dataset.shop,
+          account_id: row.querySelector(".setting-account").value || null,
+        }),
+      );
+    }
+    async function createCustomerSetting() {
+      await settingsAction(() =>
+        api("customers", "POST", {
+          code: newCustomerCode.value,
+          short_name: newCustomerName.value,
+          title: newCustomerTitle.value,
+        }),
+      );
+    }
+    async function saveCustomerSetting(button) {
+      const row = button.closest("tr");
+      await settingsAction(() =>
+        api("customers/" + encodeURIComponent(row.dataset.code), "PATCH", {
+          short_name: row.querySelector(".setting-name").value,
+          title: row.querySelector(".setting-title").value,
+          active: row.querySelector(".setting-active").value === "true",
+        }),
+      );
+    }
+    async function showPricing() {
+      try {
+        prices = await api("prices");
+        pricingContent.innerHTML =
+          '<p>Peşin kâr = satış fiyatı − alış fiyatı. Tarifeye ek kâr, buraya girilen birim tutardır. Alış fiyatı boşsa her seri için Excel’den kayıtlı fiyat kullanılır. Güncel liste raporun tüm aylarına uygulanır.</p><input id="priceSearch" placeholder="Ürün ara" oninput="renderPrices()"><p id="priceMessage" role="status"></p><div class="scroll" id="priceRows"></div>';
+        renderPrices();
+      } catch (err) {
+        pricingContent.textContent = err.message;
+      }
+    }
+    function renderPrices() {
+      const q = priceSearch.value.toLocaleLowerCase("tr");
+      priceRows.innerHTML = `<table><tr><th>Ürün</th><th>Alış Fiyatı</th><th>Peşin Satış Fiyatı</th><th>Tarifeye Ek Kâr</th><th>İşlem</th></tr>${prices
+        .filter((p) => p.product.toLocaleLowerCase("tr").includes(q))
+        .map(
+          (p) =>
+            `<tr data-product="${e(p.product)}"><td>${e(p.product)}<small>Kayıtlı alış: ${money(p.stock_min)} – ${money(p.stock_max)}</small></td><td><input class="price-purchase" type="number" min="0" step="0.01" value="${e(p.purchase_price ?? "")}" placeholder="Serideki alış fiyatı"></td><td><input class="price-cash" type="number" min="0" step="0.01" value="${e(p.cash_sale_price ?? "")}"></td><td><input class="price-tariff" type="number" step="0.01" value="${e(p.tariff_profit ?? "")}"></td><td><button onclick="savePrice(this)">Kaydet</button></td></tr>`,
+        )
+        .join("")}</table>`;
+    }
+    async function savePrice(button) {
+      const row = button.closest("tr"),
+        read = (cls) => {
+          const value = row.querySelector(cls).value;
+          return value === "" ? null : Number(value);
+        };
+      try {
+        await api("prices", "PUT", {
+          product: row.dataset.product,
+          purchase_price: read(".price-purchase"),
+          cash_sale_price: read(".price-cash"),
+          tariff_profit: read(".price-tariff"),
+        });
+        prices = await api("prices");
+        priceMessage.textContent = "Fiyatlama kaydedildi";
+        renderPrices();
+      } catch (err) {
+        priceMessage.textContent = err.message;
+      }
+    }
+    async function openProfitability() {
+      if (!selectedDealer) return;
+      profitShop = selectedDealer;
+      tab("profitability");
+      profitContent.innerHTML = "<p>Yükleniyor...</p>";
+      await renderProfitability("");
+    }
+    async function renderProfitability(month) {
+      try {
+        const r = await api(
+          "profitability?shop=" +
+            encodeURIComponent(profitShop) +
+            "&month=" +
+            encodeURIComponent(month || ""),
+        );
+        profitContent.innerHTML = `<button class="btn" onclick="returnFromProfitability()">← Bayiye dön</button><h2>${e(shopName(profitShop))} – Kârlılık</h2><label>Aktivasyon ayı <select id="profitMonth" onchange="renderProfitability(this.value)"><option value="">Tüm aylar</option>${r.months.map((m) => `<option value="${m}" ${m === month ? "selected" : ""}>${new Date(m + "-01T12:00:00").toLocaleDateString("tr-TR", { month: "long", year: "numeric" })}</option>`).join("")}</select></label><div class="card"><h3>Hesaplanan Kâr: ${money(r.totals.profit_total)}</h3><p>Satış: ${r.totals.sale_count} · Fiyatı tamamlanmış: ${r.totals.priced_count} · Eksik fiyat: ${r.totals.missing_price_count}</p><p>Aktivasyon tarihi eksik satış: ${r.undated_count} (ay filtresinde gösterilmez)</p></div><p class="muted">Güncel fiyat listesine göre hesaplanır. Peşin: satış − alış; tarifeye ek: birim tarifeye ek kâr. Eksik fiyatlar toplam kâra katılmaz.</p><div class="scroll">${table(
+          [
+            "Ürün",
+            "Seri",
+            "Alım Tarihi",
+            "Aktivasyon Tarihi",
+            "Satış",
+            "Alış",
+            "Peşin Satış Fiyatı",
+            "Kâr",
+          ],
+          r.rows.map((x) => [
+            x.product,
+            x.serial,
+            dateDisplay(x.shipped),
+            dateDisplay(x.sold),
+            x.campaign,
+            money(x.purchase_price),
+            x.cash_sale_price === null ? "Eksik" : money(x.cash_sale_price),
+            x.profit === null ? "Fiyat eksik" : money(x.profit),
+          ]),
+        )}</div>`;
+      } catch (err) {
+        profitContent.textContent = err.message;
+      }
+    }
+    function returnFromProfitability() {
+      tab("items");
+      openDealer(profitShop);
+    }
+
     init();
   </script>
 </html>

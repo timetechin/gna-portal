@@ -1,18 +1,77 @@
-// Preserve the existing Railway Function image and runner; inline the versioned HTML.
+// Preserve the existing Railway Function image and runner, keeping source in Git.
+// Inline handlers must retain their public names when browser code is minified.
 const server = await Bun.file(
   new URL("../src/server.ts", import.meta.url),
 ).text();
-const html = await Bun.file(
+let html = await Bun.file(
   new URL("../public/index.html", import.meta.url),
 ).text();
-const pattern = /const html = await Bun\.file\([\s\S]*?\)\.text\(\);/;
-if (!pattern.test(server)) throw Error("Frontend entry point was not found");
-const bundled = server.replace(
-  pattern,
-  () => "const html = " + JSON.stringify(html) + ";",
+const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+if (!script) throw Error("Browser script was not found");
+const handlers = [
+  ...new Set(
+    [
+      ...script.matchAll(/\b(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/g),
+    ].map((m) => m[1]),
+  ),
+];
+const browserSource = new URL(
+  "../artifacts/browser-source.js",
+  import.meta.url,
 );
 await Bun.write(
-  new URL("../artifacts/railway-start-command.txt", import.meta.url),
-  "./run.sh " + Buffer.from(bundled).toString("base64"),
+  browserSource,
+  script + "\nObject.assign(globalThis,{" + handlers.join(",") + "});",
 );
-console.log("Railway startup bundle prepared. No deployment was performed.");
+const browserBuild = await Bun.build({
+  entrypoints: [browserSource.pathname],
+  target: "browser",
+  format: "iife",
+  minify: true,
+});
+if (!browserBuild.success)
+  throw Error(
+    "Browser bundle failed: " + browserBuild.logs.map(String).join("; "),
+  );
+const browserCode = (await browserBuild.outputs[0].text()).replace(
+  /<\/script/gi,
+  "<\\/script",
+);
+html = html
+  .replace(
+    /<script>[\s\S]*?<\/script>/,
+    () => "<script>" + browserCode + "</script>",
+  )
+  .replace(/>\s+</g, "><");
+const pattern = /const html = await Bun\.file\([\s\S]*?\)\.text\(\);/;
+if (!pattern.test(server)) throw Error("Frontend entry point was not found");
+const intermediate = new URL(
+  "../artifacts/function-source.ts",
+  import.meta.url,
+);
+await Bun.write(
+  intermediate,
+  server.replace(pattern, () => "const html = " + JSON.stringify(html) + ";"),
+);
+const result = await Bun.build({
+  entrypoints: [intermediate.pathname],
+  target: "bun",
+  minify: true,
+  external: ["bun"],
+});
+if (!result.success)
+  throw Error("Server bundle failed: " + result.logs.map(String).join("; "));
+const code = await result.outputs[0].text(),
+  command = "./run.sh " + Buffer.from(code).toString("base64");
+if (command.length > 120000)
+  throw Error("Railway startup command exceeds the safe argument size");
+await Bun.write(new URL("../artifacts/server.ts", import.meta.url), code);
+await Bun.write(
+  new URL("../artifacts/railway-start-command.txt", import.meta.url),
+  command,
+);
+console.log(
+  "Railway Function bundle prepared (" +
+    command.length +
+    " bytes). No deployment performed.",
+);

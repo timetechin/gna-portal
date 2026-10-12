@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "scripts": {
     "start": "bun src/server.ts",
-    "dev": "bun --hot src/server.ts",
+    "dev": "bun --watch src/server.ts",
     "test": "bun test",
     "railway:bundle": "bun scripts/railway-bundle.ts",
     "test:browser": "node scripts/browser-smoke.cjs"

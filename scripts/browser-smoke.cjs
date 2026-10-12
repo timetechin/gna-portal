@@ -1,22 +1,30 @@
-const { chromium } = require("playwright");
-const XLSX = require("xlsx");
-const assert = require("node:assert/strict");
-const { spawn } = require("node:child_process");
+const { chromium } = require("playwright"),
+  XLSX = require("xlsx"),
+  assert = require("node:assert/strict"),
+  { spawn } = require("node:child_process"),
+  path = require("node:path"),
+  fs = require("node:fs");
 const connection =
-  process.env.GNA_TEST_DATABASE_URL ||
-  "postgresql://postgres@127.0.0.1:55432/gna_test";
-const parsed = new URL(connection);
+    process.env.GNA_TEST_DATABASE_URL ||
+    "postgresql://postgres@127.0.0.1:55432/gna_test",
+  parsed = new URL(connection);
 if (
   !["127.0.0.1", "localhost"].includes(parsed.hostname) ||
   parsed.pathname != "/gna_test"
 )
   throw Error("Browser checks require the isolated loopback gna_test database");
-const server = spawn(process.env.BUN_EXECUTABLE || "bun", ["src/server.ts"], {
-  cwd: require("node:path").resolve(__dirname, ".."),
+const server = spawn(process.env.BUN_EXECUTABLE || "bun", [process.env.GNA_BROWSER_SERVER||"src/server.ts"], {
+  cwd: path.resolve(__dirname, ".."),
   env: { ...process.env, DATABASE_URL: connection, PORT: "3303" },
-  stdio: "ignore",
+  stdio: "inherit",
 });
+let browser;
 process.on("exit", () => server.kill());
+const workbook = (rows) => {
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), "Data");
+  return XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+};
 (async () => {
   for (let i = 0; i < 50; i++) {
     try {
@@ -24,18 +32,19 @@ process.on("exit", () => server.kill());
     } catch {}
     await new Promise((r) => setTimeout(r, 100));
   }
-
-  const browser = await chromium.launch({
+  browser = await chromium.launch({
     executablePath: process.env.CHROMIUM_EXECUTABLE || "/usr/bin/chromium",
     headless: true,
     args: ["--no-sandbox"],
   });
   const page = await browser.newPage();
+  page.setDefaultTimeout(15000);
   const errors = [];
   page.on("pageerror", (e) => {
     errors.push(e.message);
     console.error("PAGE ERROR:", e.message);
   });
+  page.on("dialog", (dialog) => dialog.accept());
   await page.route(
     "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js",
     (r) =>
@@ -44,74 +53,152 @@ process.on("exit", () => server.kill());
         contentType: "application/javascript",
       }),
   );
-  await page.goto("http://127.0.0.1:3303");
-  await page.locator("#username").fill("admin");
-  await page.locator("#password").fill("test-password-123");
-  await page.getByRole("button", { name: "Giriş Yap" }).click();
-  await page.locator("#app").waitFor({ state: "visible" });
-  await page
-    .getByRole("button", { name: "Bayi Carileri", exact: true })
-    .click();
-  await page.locator("#dealerRows .dealer-card").first().waitFor();
-  assert.equal(
-    await page.locator("#dealerRows").innerText(),
-    "Girne Çarşı\nYenikent",
-  );
-  assert.equal(await page.locator("#productlist").isVisible(), false);
-  await page.locator("#dealerSearch").fill("Girne");
-  assert.equal(await page.locator("#dealerRows .dealer-card").count(), 1);
-  await page.getByRole("button", { name: "Girne Çarşı", exact: true }).click();
-  assert.equal(await page.locator("#dealerTitle").innerText(), "Girne Çarşı");
-  const text = await page.locator("#itemtable").innerText();
-  assert(text.includes("G1"));
-  assert(!text.includes("Yenikent"));
-  assert(!text.includes("Y1"));
-  await page.getByRole("button", { name: "← Bayilere dön" }).click();
-  assert.equal(await page.locator("#productlist").isVisible(), false);
-  await page.getByRole("button", { name: "Ana Cariler", exact: true }).click();
-  await page
-    .locator("#accountRows .dealer-card")
-    .filter({ hasText: "Ortak Ana Cari" })
-    .click();
-  assert(
-    (await page.locator("#accountCards").innerText()).includes("Girne Çarşı"),
-  );
-  await page.locator("#attachDealer").selectOption("Yenikent");
-  await page.getByRole("button", { name: "Bağla", exact: true }).click();
-  await page
-    .locator("#accountCards .customer-row")
-    .filter({ hasText: "Yenikent" })
-    .waitFor();
-  await page
-    .getByRole("button", { name: "Müşteri Cari Kartları", exact: true })
-    .click();
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet([
-    ["MusteriKisaAd", "MusteriKod", "MusteriUnvan"],
-    ["Excel Müşterisi", 123, "Excel Müşterisi Ltd."],
-  ]);
-  ws.B2.z = "000000";
-  XLSX.utils.book_append_sheet(wb, ws, "Data");
-  const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
-  await page
-    .locator("#customerFile")
-    .setInputFiles({
-      name: "279663-test.xlsx",
+  const login = async (username) => {
+    await page.locator("#username").fill(username);
+    await page.locator("#password").fill("test-password-123");
+    await page.getByRole("button", { name: "Giriş Yap", exact: true }).click();
+    await page
+      .locator("#dealerRows .dealer-card")
+      .first()
+      .waitFor({ state: "attached" });
+  };
+  const nav = async (name) =>
+    page.locator("nav").getByRole("button", { name, exact: true }).click();
+  const read = async (endpoint) =>
+    page.evaluate(async (p) => {
+      const r = await fetch("/api/" + p);
+      if (!r.ok) throw Error("HTTP " + r.status);
+      return r.json();
+    }, endpoint);
+  const openDealer = async (shop) => {
+    await nav("Bayi Carileri");
+    await page
+      .locator("#dealerRows .dealer-card[data-shop]")
+      .filter({ hasText: shop })
+      .click();
+  };
+  const upload = async (kind, name, rows) => {
+    await nav("Excel Yükle");
+    await page.locator("#" + kind + "file").setInputFiles({
+      name,
       mimeType:
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      buffer,
+      buffer: workbook(rows),
     });
+    await page
+      .locator("button[onclick=\"uploadFile('" + kind + "')\"]")
+      .click();
+    await page.waitForFunction(
+      (k) =>
+        document
+          .getElementById(k + "msg")
+          .textContent.startsWith("Güncellendi:"),
+      kind,
+    );
+  };
+  const undo = async (name) => {
+    await nav("Excel Yükle");
+    await page
+      .locator("#importhistory tr")
+      .filter({ hasText: name })
+      .getByRole("button", { name: "Geri Al", exact: true })
+      .first()
+      .click();
+    await page.waitForFunction(() =>
+      document
+        .querySelector("#undoMessage")
+        ?.textContent.includes("Dosya geri alındı"),
+    );
+  };
+  await page.goto("http://127.0.0.1:3303");
+  await login("admin");
+  await nav("Bayi Carileri");
+  assert(
+    (await page.locator("#dealerRows").innerText()).includes("Ortak Ana Cari"),
+  );
+  assert(
+    (await page.locator("#dealerRows").innerText()).includes("Girne Çarşı"),
+  );
+  await page
+    .locator("#dealerRows .dealer-card[data-id]")
+    .filter({ hasText: "Ortak Ana Cari" })
+    .click();
+  assert.equal(await page.locator("#groupDealerRows .dealer-card").count(), 1);
+  await page.locator("#groupDealerRows .dealer-card").click();
+  await page.locator('#productViews button[data-bucket="paid"]').click();
+  assert((await page.locator("#itemtable tbody").innerText()).includes("G1"));
+  assert(
+    !(await page.locator("#itemtable tbody").innerText()).includes("Yenikent"),
+  );
+  assert(
+    (await page.locator("#itemtable thead").innerText()).includes(
+      "Alım Tarihi",
+    ),
+  );
+  assert(
+    (await page.locator("#itemtable thead").innerText()).includes(
+      "Aktivasyon Tarihi",
+    ),
+  );
+  await page.locator("#filter-campaign summary").click();
+  await page
+    .locator("#filter-campaign")
+    .getByRole("button", { name: "Temizle", exact: true })
+    .click();
+  await page
+    .locator("#filter-campaign")
+    .getByRole("button", { name: "Uygula", exact: true })
+    .click();
+  assert.equal(await page.locator("#itemtable tbody tr").count(), 0);
+  await page
+    .getByRole("button", { name: "Sütun filtrelerini temizle" })
+    .click();
+  assert.equal(await page.locator("#itemtable tbody tr").count(), 1);
+  await nav("Cari Kayıt Ayarları");
+  assert.equal(
+    await page
+      .getByRole("button", { name: "Ana Cari Aç", exact: true })
+      .isVisible(),
+    true,
+  );
+  const groups = (await read("directory")).groups;
+  const common = groups.find((g) => g.name === "Ortak Ana Cari");
+  const yen = page.locator('#cariSettings tr[data-shop="Yenikent"]');
+  await yen.locator(".setting-account").selectOption(String(common.id));
+  await yen.getByRole("button", { name: "Bağlantıyı Kaydet" }).click();
+  await page.waitForFunction(() =>
+    document
+      .querySelector("#settingsMessage")
+      .textContent.includes("kaydedildi"),
+  );
+  await nav("Bayi Carileri");
+  await page
+    .locator("#dealerRows .dealer-card[data-id]")
+    .filter({ hasText: "Ortak Ana Cari" })
+    .click();
+  assert.equal(await page.locator("#groupDealerRows .dealer-card").count(), 2);
+  await nav("Cari Kayıt Ayarları");
+  const customerWB = XLSX.utils.book_new(),
+    sheet = XLSX.utils.aoa_to_sheet([
+      ["MusteriKisaAd", "MusteriKod", "MusteriUnvan"],
+      ["Excel Müşterisi", 123, "Excel Müşterisi Ltd."],
+    ]);
+  sheet.B2.z = "000000";
+  XLSX.utils.book_append_sheet(customerWB, sheet, "Data");
+  await page.locator("#customerFile").setInputFiles({
+    name: "279663-browser.xlsx",
+    mimeType:
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    buffer: XLSX.write(customerWB, { type: "buffer", bookType: "xlsx" }),
+  });
   await page.getByRole("button", { name: "Müşteri Kartlarını Aktar" }).click();
   await page.waitForFunction(() =>
     document
       .querySelector("#customerImportMessage")
       .textContent.includes("Yeni kart: 1"),
   );
-  await page.locator("#customerSearch").fill("000123");
   assert(
-    (await page.locator("#customerRows").innerText()).includes(
-      "Excel Müşterisi Ltd.",
-    ),
+    (await page.locator("#customerSettingRows").innerText()).includes("000123"),
   );
   await page.getByRole("button", { name: "Müşteri Kartlarını Aktar" }).click();
   await page.waitForFunction(() =>
@@ -119,46 +206,219 @@ process.on("exit", () => server.kill());
       .querySelector("#customerImportMessage")
       .textContent.includes("Yeni kart: 0"),
   );
-  require("node:fs").mkdirSync(
-    require("node:path").resolve(__dirname, "../artifacts"),
-    { recursive: true },
-  );
-  await page.screenshot({
-    path: require("node:path").resolve(
-      __dirname,
-      "../artifacts/customer-screen.png",
+  await nav("Müşteri Cari Kartları");
+  assert.equal(await page.locator("#customerFile").count(), 1);
+  assert.equal(await page.locator("#customerFile").isVisible(), false);
+  await page.locator("#customerSearch").fill("000123");
+  assert(
+    (await page.locator("#customerRows").innerText()).includes(
+      "Excel Müşterisi",
     ),
+  );
+  await nav("Excel Yükle");
+  assert.equal(await page.locator("#onlyPrefix2").isChecked(), true);
+  await upload("stock", "browser-stock.xlsx", [
+    ["SeriNo", "MusteriKisaAd", "Urun", "BirimFiyat", "IslemTarihi"],
+    ["2BROWSER-CASH", "Girne Çarşı", "Browser Phone", 100, "12.10.2026"],
+    ["2BROWSER-TARIFF", "Yenikent", "Browser Phone", 100, "12.10.2026"],
+    ["9BROWSER-IGNORED", "Yenikent", "Other Phone", 100, "12.10.2026"],
+  ]);
+  assert(!(await read("items")).some((x) => x.serial === "9BROWSER-IGNORED"));
+  await nav("Excel Yükle");
+  await page.locator("#onlyPrefix2").uncheck();
+  await upload("stock", "browser-other.xlsx", [
+    ["SeriNo", "MusteriKisaAd", "Urun", "BirimFiyat", "IslemTarihi"],
+    ["9BROWSER-OTHER", "Yenikent", "Other Phone", 100, "12.10.2026"],
+  ]);
+  assert((await read("items")).some((x) => x.serial === "9BROWSER-OTHER"));
+  await undo("browser-other.xlsx");
+  await page.locator("#onlyPrefix2").check();
+  await openDealer("Girne Çarşı");
+  assert(
+    (await page.locator("#itemtable tbody").innerText()).includes(
+      "2BROWSER-CASH",
+    ),
+  );
+  assert(
+    (await page.locator("#itemtable tbody").innerText()).includes("12.10.2026"),
+  );
+  await upload("payment", "browser-vdm.xlsx", [
+    ["SeriNo"],
+    ["2BROWSER-CASH"],
+    ["2BROWSER-TARIFF"],
+  ]);
+  await openDealer("Girne Çarşı");
+  assert(
+    !(await page.locator("#itemtable tbody").innerText()).includes(
+      "2BROWSER-CASH",
+    ),
+  );
+  await page.locator('#productViews button[data-bucket="paid"]').click();
+  assert(
+    (await page.locator("#itemtable tbody").innerText()).includes(
+      "2BROWSER-CASH",
+    ),
+  );
+  await upload("activation", "browser-activation.xlsx", [
+    [
+      "A",
+      "Aktivasyon Tarihi",
+      "Bayi Adı",
+      "D",
+      "Cihaz Kampanya Adı",
+      "Yanlış F",
+      "G",
+      "Cihaz IMEI",
+    ],
+    [
+      "",
+      "14.10.2026",
+      "Girne Çarşı",
+      "",
+      " gna   bayi cihaz kampanyasi ",
+      "AYLIK TAAHHUTLU KAMPANYALAR",
+      "",
+      "2BROWSER-CASH",
+    ],
+    [
+      "",
+      "14.10.2026",
+      "Yenikent",
+      "",
+      " AYLIK   TAAHHUTLU KAMPANYALAR ",
+      "GNA BAYI CIHAZ KAMPANYASI",
+      "",
+      "2BROWSER-TARIFF",
+    ],
+  ]);
+  const actual = await read("items");
+  assert.equal(
+    actual.find((x) => x.serial === "2BROWSER-CASH").campaign,
+    "Peşin Satış",
+  );
+  assert.equal(
+    actual.find((x) => x.serial === "2BROWSER-TARIFF").campaign,
+    "Tarifeye Ek",
+  );
+  assert.equal(
+    actual.find((x) => x.serial === "2BROWSER-CASH").sold,
+    "2026-10-14",
+  );
+  await openDealer("Girne Çarşı");
+  await page.locator('#productViews button[data-bucket="paid"]').click();
+  assert(
+    !(await page.locator("#itemtable tbody").innerText()).includes(
+      "2BROWSER-CASH",
+    ),
+  );
+  await page.locator('#productViews button[data-bucket="closed"]').click();
+  assert(
+    (await page.locator("#itemtable tbody").innerText()).includes(
+      "2BROWSER-CASH",
+    ),
+  );
+  await openDealer("Yenikent");
+  await page.locator('#productViews button[data-bucket="vf"]').click();
+  assert(
+    (await page.locator("#itemtable tbody").innerText()).includes(
+      "2BROWSER-TARIFF",
+    ),
+  );
+  assert(
+    (await page.locator("#itemtable tbody").innerText()).includes(
+      "VF’den Ödeme Bekleniyor",
+    ),
+  );
+  await nav("Fiyatlama Listesi");
+  const priceRow = page.locator('#priceRows tr[data-product="Browser Phone"]');
+  await priceRow.locator(".price-purchase").fill("100");
+  await priceRow.locator(".price-cash").fill("240");
+  await priceRow.locator(".price-tariff").fill("40");
+  await priceRow.getByRole("button", { name: "Kaydet", exact: true }).click();
+  await page.waitForFunction(() =>
+    document.querySelector("#priceMessage").textContent.includes("kaydedildi"),
+  );
+  await openDealer("Girne Çarşı");
+  await page.getByRole("button", { name: "Kârlılık", exact: true }).click();
+  await page.locator("#profitMonth").selectOption("2026-10");
+  await page.waitForFunction(() =>
+    document.querySelector("#profitContent").textContent.includes("140,00"),
+  );
+  assert(
+    (await page.locator("#profitContent").innerText()).includes(
+      "2BROWSER-CASH",
+    ),
+  );
+  await upload("vf_payment", "browser-vf.xlsx", [
+    ["IMEI", "Ödeme Tarihi"],
+    ["2BROWSER-TARIFF", "16.10.2026"],
+  ]);
+  await openDealer("Yenikent");
+  await page.locator('#productViews button[data-bucket="vf"]').click();
+  assert(
+    !(await page.locator("#itemtable tbody").innerText()).includes(
+      "2BROWSER-TARIFF",
+    ),
+  );
+  assert((await read("items")).some((x) => x.serial === "2BROWSER-TARIFF"));
+  await undo("browser-vf.xlsx");
+  await openDealer("Yenikent");
+  await page.locator('#productViews button[data-bucket="vf"]').click();
+  assert(
+    (await page.locator("#itemtable tbody").innerText()).includes(
+      "2BROWSER-TARIFF",
+    ),
+  );
+  for (const file of [
+    "browser-activation.xlsx",
+    "browser-vdm.xlsx",
+    "browser-stock.xlsx",
+  ])
+    await undo(file);
+  assert(!(await read("items")).some((x) => x.serial.startsWith("2BROWSER-")));
+  await nav("Excel Yükle");
+  const old = page
+    .locator("#importhistory tr")
+    .filter({ hasText: "old-history.xlsx" });
+  assert((await old.innerText()).includes("Geri alma desteklenmiyor"));
+  assert.equal(await old.getByRole("button", { name: "Geri Al" }).count(), 0);
+  await undo("279663-browser.xlsx");
+  await undo("279663-browser.xlsx");
+  assert(!(await read("customers")).some((c) => c.code === "000123"));
+  await nav("Bayi Carileri");
+  fs.mkdirSync(path.resolve(__dirname, "../artifacts"), { recursive: true });
+  await page.screenshot({
+    path: path.resolve(__dirname, "../artifacts/dealer-groups.png"),
     fullPage: true,
   });
-  await page
-    .getByRole("button", { name: "İşlem Kayıtları", exact: true })
-    .click();
-  await page.waitForFunction(() =>
-    document
-      .querySelector("#auditRows")
-      .textContent.includes("Müşteri kartları aktarıldı"),
-  );
-  await page.getByRole("button", { name: "Çıkış", exact: true }).click();
-  await page.locator("#username").fill("dealer");
-  await page.locator("#password").fill("test-password-123");
-  await page.getByRole("button", { name: "Giriş Yap" }).click();
-  await page.locator("#app").waitFor({ state: "visible" });
+  await nav("Çıkış");
+  await login("dealer");
   assert.equal(
     await page
-      .getByRole("button", { name: "Ana Cariler", exact: true })
+      .locator("nav")
+      .getByRole("button", { name: "Cari Kayıt Ayarları", exact: true })
       .isVisible(),
     false,
   );
-  await page
-    .getByRole("button", { name: "Bayi Carileri", exact: true })
-    .click();
-  assert.equal(await page.locator("#dealerRows").innerText(), "Girne Çarşı");
-  assert.deepEqual(errors, []);
-  await browser.close();
-  console.log(
-    "PASS: dealer list/search/detail/back, main-account attach, real XLSX Data import with zero-padded code, repeat import, audit, dealer isolation and hidden admin controls.",
+  assert.equal(
+    await page
+      .locator("nav")
+      .getByRole("button", { name: "Fiyatlama Listesi", exact: true })
+      .isVisible(),
+    false,
   );
-})().finally(() => server.kill()).catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+  await nav("Bayi Carileri");
+  assert(!(await page.locator("#dealerRows").innerText()).includes("Yenikent"));
+  assert.deepEqual(errors, []);
+  console.log(
+    "PASS: main/sub-dealer navigation, settings isolation, column multiselect filters, actual E/H XLSX classification, date import, monthly profit, VDM/VF queues, full file undo, zero-padded customer import, legacy safeguards and dealer permissions.",
+  );
+})()
+  .finally(async () => {
+    if (browser) await browser.close();
+    server.kill();
+  })
+  .catch((e) => {
+    console.error(e);
+    process.exitCode = 1;
+  });
