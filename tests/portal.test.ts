@@ -994,3 +994,27 @@ test("an explicitly logged historical cost correction can be undone without chan
  expect((await api("items")).data.find(x=>x.serial===row.serial)).toEqual(row);
  expect((await api("uploads/"+stock+"/undo","POST")).status).toBe(200);
 });
+
+test("dashboard separates current-month profit, unpaid due categories, stock and dealer scope",async()=>{
+ const calendar=(await api("dashboard")).data;
+ expect(calendar.month).toMatch(/^\d{4}-\d{2}$/);
+ const month=calendar.month,day=age=>new Date(Date.parse(calendar.today+"T00:00:00Z")-age*86400000).toISOString().slice(0,10),oldMonth=new Date(Date.parse(month+"-01T00:00:00Z")-86400000).toISOString().slice(0,7);
+ const rows=[['DS-OLD',100,45,'Dashboard Phone'],['DS-NEW',200,44,'Dashboard Phone'],['DS-PAID-STOCK',300,60,'Dashboard Phone'],['DS-CASH',50,0,'Dashboard Phone'],['DS-OLD-CASH',80,0,'Dashboard Phone'],['DS-TARIFF',90,0,'Dashboard Phone'],['DS-TARIFF-MISSING',100,0,'No Dashboard Price'],['DS-CASH-MISSING',110,0,'No Dashboard Price'],['DS-PAID-CASH',60,0,'Dashboard Phone']].map(([serial,price,age,product])=>({serial,price,shipped:day(Number(age)),product,shop:'Dashboard Shop'}));
+ const stock=(await api("import","POST",{kind:"stock",rows})).data.batch_id;
+ const activation=(await api("import","POST",{kind:"activation",rows:[{serial:'DS-CASH',campaign:'Peşin Satış',sold:month+'-01'},{serial:'DS-OLD-CASH',campaign:'Peşin Satış',sold:oldMonth+'-01'},{serial:'DS-TARIFF',campaign:'Tarifeye Ek',sold:month+'-01'},{serial:'DS-TARIFF-MISSING',campaign:'Tarifeye Ek',sold:month+'-01'},{serial:'DS-CASH-MISSING',campaign:'Peşin Satış',sold:month+'-01'},{serial:'DS-PAID-CASH',campaign:'Peşin Satış',sold:month+'-01'}]})).data.batch_id;
+ const sales=(await api("import","POST",{kind:"sale_price",rows:[{serial:'DS-CASH',cash_sale_price:120},{serial:'DS-OLD-CASH',cash_sale_price:150},{serial:'DS-PAID-CASH',cash_sale_price:160}]})).data.batch_id;
+ const paid=(await api("import","POST",{kind:"payment",rows:[{serial:'DS-PAID-STOCK'},{serial:'DS-PAID-CASH'}]})).data.batch_id;
+ await api("prices","PUT",{product:'Dashboard Phone',purchase_price:999,cash_sale_price:null,tariff_profit:30});
+ const r=(await api("dashboard")).data.shops.find(x=>x.shop==='Dashboard Shop');
+ expect(r.stock_count).toBe(3);expect(Number(r.cash_profit)).toBe(170);expect(Number(r.tariff_profit)).toBe(30);
+ expect(r.cash_sales_count).toBe(3);expect(r.tariff_sales_count).toBe(2);expect(r.cash_missing_count).toBe(1);expect(r.tariff_missing_count).toBe(1);
+ expect(r.due_cash_count).toBe(3);expect(Number(r.due_cash_amount)).toBe(240);expect(r.due_stock_count).toBe(1);expect(Number(r.due_stock_amount)).toBe(100);
+ const dealer=(await api("dashboard?shop=Dashboard%20Shop","GET",undefined,dealerCookie)).data;
+ expect(dealer.shops.every(x=>x.shop==='Girne Çarşı')).toBe(true);
+ const previewResponse=await fetch(base+'/api/dashboard',{headers:{Cookie:adminCookie,'x-gna-preview-shop':'Dashboard Shop'}});
+ expect(previewResponse.status).toBe(200);expect((await previewResponse.json()).shops.map(x=>x.shop)).toEqual(['Dashboard Shop']);
+ const settings=(await api("list-settings")).data.rules;const changed=structuredClone(settings);changed.due.sales=['stock'];await api("list-settings","PUT",{rules:changed});
+ const stockOnly=(await api("dashboard")).data.shops.find(x=>x.shop==='Dashboard Shop');expect(stockOnly.due_cash_count).toBe(0);expect(Number(stockOnly.due_stock_amount)).toBe(100);
+ await api("list-settings","PUT",{rules:settings});
+ for(const id of [paid,sales,activation,stock])expect((await api("uploads/"+id+"/undo","POST")).status).toBe(200);
+});

@@ -494,6 +494,35 @@ Bun.serve({
           },
         });
       }
+      if(path === "/api/dashboard" && req.method === "GET") {
+        const [dateInfo]=await run("SELECT to_char(now() AT TIME ZONE 'Europe/Bucharest','YYYY-MM') AS month_key,to_char(now() AT TIME ZONE 'Europe/Bucharest','YYYY-MM-DD') AS today");
+        const calendar={month:dateInfo.month_key,today:dateInfo.today};
+        const saved=await run("SELECT rules FROM gna_list_settings WHERE id=1");
+        const due=saved[0]?.rules?.due || defaultListRules.due;
+        const shops=await run(`WITH source AS (
+          SELECT i.*,p.tariff_profit,
+            CASE WHEN i.campaign='Peşin Satış' THEN round(coalesce(i.cash_sale_price,p.cash_sale_price)-i.price,2) WHEN i.campaign='Tarifeye Ek' THEN p.tariff_profit END unit_profit,
+            CASE WHEN i.shipped ~ '^[1-9][0-9]{3}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$' THEN ($3::date-to_date(i.shipped,'YYYY-MM-DD'))>=45 ELSE false END aged_stock,
+            nullif(i.paid_on,'') IS NULL AND ($6='any' OR ($6='paid' AND nullif(i.vf_paid_on,'') IS NOT NULL) OR ($6='unpaid' AND nullif(i.vf_paid_on,'') IS NULL)) eligible_due
+          FROM gna_items i LEFT JOIN gna_product_prices p ON p.product=i.product
+          WHERE ($1::boolean OR i.shop IN (SELECT jsonb_array_elements_text($2::jsonb)))
+        ) SELECT shop,
+          count(*) FILTER(WHERE coalesce(campaign,'')='')::int stock_count,
+          count(*) FILTER(WHERE campaign='Peşin Satış' AND left(sold,7)=$4)::int cash_sales_count,
+          count(*) FILTER(WHERE campaign='Tarifeye Ek' AND left(sold,7)=$4)::int tariff_sales_count,
+          coalesce(sum(unit_profit) FILTER(WHERE campaign='Peşin Satış' AND left(sold,7)=$4),0) cash_profit,
+          coalesce(sum(unit_profit) FILTER(WHERE campaign='Tarifeye Ek' AND left(sold,7)=$4),0) tariff_profit,
+          count(*) FILTER(WHERE campaign='Peşin Satış' AND left(sold,7)=$4 AND unit_profit IS NULL)::int cash_missing_count,
+          count(*) FILTER(WHERE campaign='Tarifeye Ek' AND left(sold,7)=$4 AND unit_profit IS NULL)::int tariff_missing_count,
+          count(*) FILTER(WHERE campaign IN ('Peşin Satış','Tarifeye Ek') AND (sold IS NULL OR sold !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'))::int undated_count,
+          count(*) FILTER(WHERE eligible_due AND campaign='Peşin Satış' AND $5::jsonb ? 'cash')::int due_cash_count,
+          coalesce(sum(price) FILTER(WHERE eligible_due AND campaign='Peşin Satış' AND $5::jsonb ? 'cash'),0) due_cash_amount,
+          count(*) FILTER(WHERE eligible_due AND coalesce(campaign,'')='' AND aged_stock AND $5::jsonb ? 'stock')::int due_stock_count,
+          coalesce(sum(price) FILTER(WHERE eligible_due AND coalesce(campaign,'')='' AND aged_stock AND $5::jsonb ? 'stock'),0) due_stock_amount,
+          count(*) FILTER(WHERE eligible_due AND price IS NULL AND ((campaign='Peşin Satış' AND $5::jsonb ? 'cash') OR (coalesce(campaign,'')='' AND aged_stock AND $5::jsonb ? 'stock')))::int due_missing_count
+          FROM source GROUP BY shop ORDER BY shop`,[u.role==="admin",u.shops,calendar.today,calendar.month,due.sales,due.vf]);
+        return out({...calendar,shops});
+      }
       if (path === "/api/dealers" && req.method === "GET")
         return out(
           await run(

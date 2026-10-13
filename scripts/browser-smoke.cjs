@@ -240,7 +240,7 @@ const workbook = (rows) => {
   assert(
     (await page.locator("#itemtable tbody").innerText()).includes("12.10.2026"),
   );
-  assert((await page.locator("#dealerDashboard").innerText()).includes("Eldeki Konsinye"));
+  assert((await page.locator("#dealerDashboard").innerText()).includes("Eldeki Ürün Adedi"));
   await page.locator("#dateMonth").fill("2026-11");
   await page.locator("#dateMonth").dispatchEvent("change");
   assert.equal(await page.locator("#itemtable tbody tr").count(),0);
@@ -572,14 +572,21 @@ const workbook = (rows) => {
   const dueFixture=await page.evaluate(async()=>{
     const today=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Bucharest'}).format(new Date());
     const day=age=>new Date(Date.parse(today+'T00:00:00Z')-age*86400000).toISOString().slice(0,10);
-    const post=async(path,body)=>{const r=await fetch('/api/'+path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw Error('Due fixture request failed');return r.json();};
+    const post=async(path,body,method='POST')=>{const r=await fetch('/api/'+path,{method,headers:{'content-type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw Error('Due fixture request failed');return r.json();};
     const rows=[['2DUE-45',45],['2DUE-46',46],['2DUE-44',44],['2DUE-CASH',0],['2DUE-TARIFF',46],['2DUE-PAID-STOCK',46],['2DUE-PAID-CASH',0],['2DUE-UNDATED',null]].map(([serial,age])=>({serial,shop:'Due Fixture',product:'Due Phone',price:10,shipped:age===null?null:day(age)}));
     const stock=await post('import',{kind:'stock',filename:'due-fixture-stock.xlsx',rows});
-    const activation=await post('import',{kind:'activation',filename:'due-fixture-activation.xlsx',rows:[{serial:'2DUE-CASH',campaign:'Peşin Satış'},{serial:'2DUE-PAID-CASH',campaign:'Peşin Satış'},{serial:'2DUE-TARIFF',campaign:'Tarifeye Ek'}]});
+    const activation=await post('import',{kind:'activation',filename:'due-fixture-activation.xlsx',rows:[{serial:'2DUE-CASH',campaign:'Peşin Satış',sold:today},{serial:'2DUE-PAID-CASH',campaign:'Peşin Satış',sold:today},{serial:'2DUE-TARIFF',campaign:'Tarifeye Ek',sold:today}]});
+    const sale=await post('import',{kind:'sale_price',filename:'due-sale-prices.xlsx',rows:[{serial:'2DUE-CASH',cash_sale_price:70},{serial:'2DUE-PAID-CASH',cash_sale_price:40}]});
+    await post('prices',{product:'Due Phone',purchase_price:999,cash_sale_price:null,tariff_profit:25},'PUT');
     const paid=await post('import',{kind:'payment',filename:'due-fixture-payment.xlsx',rows:[{serial:'2DUE-PAID-STOCK'},{serial:'2DUE-PAID-CASH'}]});
-    await refresh();return {stock:stock.batch_id,activation:activation.batch_id,paid:paid.batch_id,today};
+    await refresh();return {stock:stock.batch_id,activation:activation.batch_id,sale:sale.batch_id,paid:paid.batch_id,today};
   });
   await openDealer('Due Fixture');await page.locator('#productViews button[data-bucket="due"]').click();
+  for(const [key,value] of [['cash-profit','90,00'],['tariff-profit','25,00'],['profit-total','115,00'],['due-cash','10,00'],['due-stock','20,00'],['due-total','30,00'],['stock-count','5 ürün']])assert((await page.locator('#dealerDashboard [data-metric="'+key+'"]').innerText()).includes(value));
+  await page.locator('#dealerDashboard').getByRole('button',{name:/45 Günü Dolan Stok/}).click();assert.equal(await page.locator('#itemtable tbody tr').count(),2);
+  await page.locator('#dealerDashboard').getByRole('button',{name:/Peşin Satılan/}).click();assert.equal(await page.locator('#itemtable tbody tr').count(),1);
+  await page.locator('#dealerDashboard').getByRole('button',{name:/Toplam Ödenecek/}).click();assert.equal(await page.locator('#itemtable tbody tr').count(),3);
+
   assert((await page.locator('#productViews button[data-bucket="due"]').innerText()).includes('(3)'));
   const dueText=await page.locator('#itemtable tbody').innerText();
   for(const serial of ['2DUE-45','2DUE-46','2DUE-CASH'])assert(dueText.includes(serial));
@@ -604,7 +611,7 @@ const workbook = (rows) => {
   await page.locator('[data-rule="due"] [data-sale="cash"]').uncheck();await page.getByRole('button',{name:'Toplu Kaydet',exact:true}).click();await page.waitForFunction(()=>listRulesMessage.textContent.includes('kaydedildi'));
   await openDealer('Due Fixture');await page.locator('#productViews button[data-bucket="due"]').click();assert(!(await page.locator('#itemtable tbody').innerText()).includes('2DUE-CASH'));
   await nav('Ayarlar');await page.waitForSelector('[data-rule="due"]');await page.getByRole('button',{name:'Varsayılanları forma getir',exact:true}).click();await page.getByRole('button',{name:'Toplu Kaydet',exact:true}).click();await page.waitForFunction(()=>listRulesMessage.textContent.includes('kaydedildi'));
-  await page.evaluate(async ids=>{for(const id of ids){const r=await fetch('/api/uploads/'+id+'/undo',{method:'POST'});if(!r.ok)throw Error('Due fixture cleanup failed');}await refresh();},[dueFixture.paid,dueFixture.activation,dueFixture.stock]);
+  await page.evaluate(async ids=>{for(const id of ids){const r=await fetch('/api/uploads/'+id+'/undo',{method:'POST'});if(!r.ok)throw Error('Due fixture cleanup failed');}await refresh();},[dueFixture.paid,dueFixture.sale,dueFixture.activation,dueFixture.stock]);
 
   await nav("Çıkış");
   await login("dealer");
