@@ -787,6 +787,20 @@ Bun.serve({
           await audit(tx,u,"prices.bulk",{products:[...names],count:rows.length});
         });return out({ok:true,saved:rows.length});
       }
+      if(path==="/api/items/bulk-delete"&&req.method==="POST"){
+        const b=await req.json();
+        if(!Array.isArray(b.ids)||!b.ids.length||b.ids.length>10000||b.ids.some(id=>!(/^[1-9]\d{0,18}$/.test(String(id)))||(typeof id!=="string"&&!(typeof id==="number"&&Number.isSafeInteger(id)))))return bad("Geçerli ürün seçimleri gerekli");
+        const ids=b.ids.map(String);
+        if(new Set(ids).size!==ids.length)return bad("Ürün seçimleri tekrarlanamaz");
+        const result=await writeDb.begin(async tx=>{
+          await uploadLock(tx);
+          const old=await tx.unsafe("SELECT * FROM gna_items WHERE id::text IN (SELECT jsonb_array_elements_text($1::jsonb)) ORDER BY id FOR UPDATE",[ids]);
+          if(old.length!==ids.length)throw new UserError("Seçili ürünlerden bazıları bulunamadı. Listeyi yenileyin; hiçbir ürün silinmedi.",409);
+          await tx.unsafe("DELETE FROM gna_items WHERE id::text IN (SELECT jsonb_array_elements_text($1::jsonb))",[ids]);
+          await audit(tx,u,"items.bulk-delete",{old});
+          return {ok:true,deleted:old.length};
+        });return out(result);
+      }
       const itemAction=path.match(/^\/api\/items\/(\d+)$/);
       if(itemAction&&["PATCH","DELETE"].includes(req.method)){
         const b=req.method==="PATCH"?await req.json():null;

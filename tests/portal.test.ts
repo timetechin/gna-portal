@@ -1018,3 +1018,16 @@ test("dashboard separates current-month profit, unpaid due categories, stock and
  await api("list-settings","PUT",{rules:settings});
  for(const id of [paid,sales,activation,stock])expect((await api("uploads/"+id+"/undo","POST")).status).toBe(200);
 });
+
+ test("bulk deletion is admin-only, atomic and preserves unselected products",async()=>{
+ await api("import","POST",{kind:"stock",rows:["A","B","C"].map(x=>({serial:"2BULK"+x,shop:"Girne Çarşı",product:"Bulk Test",price:10}))});
+ const rows=(await api("items")).data.filter(x=>x.serial.startsWith("2BULK"));
+ const ids=rows.slice(0,2).map(x=>String(x.id));
+ expect((await api("items/bulk-delete","POST",{ids},dealerCookie)).status).toBe(403);
+ expect((await api("items/bulk-delete","POST",{ids:[ids[0],ids[0]]})).status).toBe(400);
+ expect((await api("items/bulk-delete","POST",{ids:[ids[0],"9999999999999999999"]})).status).toBe(409);
+ expect((await api("items")).data.filter(x=>x.serial.startsWith("2BULK")).length).toBe(3);
+ const result=await api("items/bulk-delete","POST",{ids});expect(result.status).toBe(200);expect(result.data.deleted).toBe(2);
+ expect((await api("items")).data.filter(x=>x.serial.startsWith("2BULK")).map(x=>x.id)).toEqual([rows[2].id]);
+ await api("items/"+rows[2].id,"DELETE");
+ });

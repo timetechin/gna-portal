@@ -613,6 +613,16 @@ const workbook = (rows) => {
   await nav('Ayarlar');await page.waitForSelector('[data-rule="due"]');await page.getByRole('button',{name:'Varsayılanları forma getir',exact:true}).click();await page.getByRole('button',{name:'Toplu Kaydet',exact:true}).click();await page.waitForFunction(()=>listRulesMessage.textContent.includes('kaydedildi'));
   await page.evaluate(async ids=>{for(const id of ids){const r=await fetch('/api/uploads/'+id+'/undo',{method:'POST'});if(!r.ok)throw Error('Due fixture cleanup failed');}await refresh();},[dueFixture.paid,dueFixture.sale,dueFixture.activation,dueFixture.stock]);
 
+  await page.evaluate(async()=>{const r=await fetch('/api/import',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({kind:'stock',rows:['A','B','C'].map(x=>({serial:'2BROWSER-BULK-'+x,shop:'Bulk Fixture',product:'Bulk test',price:10}))})});if(!r.ok)throw Error('Bulk fixture failed');await refresh();});
+  await openDealer('Bulk Fixture');
+  assert(await page.locator('#bulkDeleteProducts').isDisabled());
+  await page.getByRole('checkbox',{name:'Ürün seç 2BROWSER-BULK-A',exact:true}).check();
+  await page.getByRole('checkbox',{name:'Ürün seç 2BROWSER-BULK-B',exact:true}).check();
+  await page.locator('#bulkDeleteProducts').click();
+  await page.waitForFunction(()=>document.querySelector('#itemtable tbody tr')?.textContent.includes('2BROWSER-BULK-C')&&document.querySelectorAll('#itemtable tbody tr').length===1);
+  assert((await page.locator('#selectionCount').innerText()).includes('0 seçili'));
+  await page.evaluate(async()=>{const rows=await api('items');const row=rows.find(x=>x.serial==='2BROWSER-BULK-C');await api('items/'+row.id,'DELETE');await refresh();});
+
   await nav("Çıkış");
   await login("dealer");
   assert.equal(

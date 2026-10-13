@@ -313,7 +313,7 @@
           <div id="productlist" hidden>
             <button class="btn" onclick="backFromProducts()">← Geri</button>
             <h2 id="dealerTitle"></h2>
-            <div id="dealerDashboard" class="totals"></div><div class="date-controls"><label>Tarih türü <select id="dateField" onchange="draw()"><option value="shipped">Alım Tarihi</option><option value="sold">Aktivasyon Tarihi</option></select></label><label>Başlangıç <input id="dateFrom" type="date" onchange="draw()"></label><label>Bitiş <input id="dateTo" type="date" onchange="draw()"></label><label>Ay <input id="dateMonth" type="month" onchange="draw()"></label><button onclick="clearDateFilters()">Tarihleri temizle</button></div><button class="btn" onclick="exportDealerProducts()">Excel’e Aktar</button><span id="selectionCount"></span><button id="showColumns" onclick="restoreColumns()">Gizli sütunları göster</button><div id="productViews" class="view-buttons"></div>
+            <div id="dealerDashboard" class="totals"></div><div class="date-controls"><label>Tarih türü <select id="dateField" onchange="draw()"><option value="shipped">Alım Tarihi</option><option value="sold">Aktivasyon Tarihi</option></select></label><label>Başlangıç <input id="dateFrom" type="date" onchange="draw()"></label><label>Bitiş <input id="dateTo" type="date" onchange="draw()"></label><label>Ay <input id="dateMonth" type="month" onchange="draw()"></label><button onclick="clearDateFilters()">Tarihleri temizle</button></div><button class="btn" onclick="exportDealerProducts()">Excel’e Aktar</button><span id="selectionCount"></span><button class="admin" id="bulkDeleteProducts" disabled onclick="deleteSelectedProducts()">Seçilenleri Toplu Sil</button><button id="showColumns" onclick="restoreColumns()">Gizli sütunları göster</button><div id="productViews" class="view-buttons"></div>
             <div id="dealerAliases" class="admin"></div>
             <button onclick="resetColumnFilters()">
               Sütun filtrelerini temizle
@@ -1785,11 +1785,19 @@
     function productAge(x){if(!/^\d{4}-\d{2}-\d{2}$/.test(x.shipped||""))return null;const today=new Intl.DateTimeFormat("sv-SE",{timeZone:"Europe/Bucharest"}).format(new Date());return Math.max(0,Math.floor((Date.parse(today+"T00:00:00Z")-Date.parse(x.shipped+"T00:00:00Z"))/86400000));}
     function selectProduct(id,checked){checked?selectedProductIds.add(id):selectedProductIds.delete(id);updateSelectionCount();}
     function selectAllProducts(checked){visibleProductRows.forEach(x=>selectProduct(String(x.id),checked));itemtable.querySelectorAll('tbody input[type="checkbox"]').forEach(x=>x.checked=checked);}
-    function updateSelectionCount(){selectionCount.textContent=visibleProductRows.filter(x=>selectedProductIds.has(String(x.id))).length+" seçili";}
+    function updateSelectionCount(){const count=visibleProductRows.filter(x=>selectedProductIds.has(String(x.id))).length;selectionCount.textContent=count+" seçili";bulkDeleteProducts.disabled=!count||bulkDeleting;}
     function exportDealerProducts(){const selected=visibleProductRows.filter(x=>selectedProductIds.has(String(x.id))),rows=selected.length?selected:visibleProductRows;const columns=visibleProductColumns();writeExcel("GNA-bayi-urunleri",columns.map(c=>c.label),rows.map(x=>columns.map(c=>c.key==="price"?Number(x.price):c.value(x))));}
     function editProduct(id){const x=items.find(x=>String(x.id)===id);if(!x||me.role!=="admin")return;editItemId.value=id;editItemShop.value=x.shop;editItemSerial.value=x.serial;editItemProduct.value=x.product||"";editItemPrice.value=x.price;editItemShipped.value=x.shipped||"";editItemSold.value=x.sold||"";editItemCampaign.value=x.campaign||"";editItemPaid.checked=!!x.paid_on;editItemVF.checked=!!x.vf_paid_on;itemEditMessage.textContent="";itemEditor.showModal();}
     async function refreshProductList(){const context={dealer:selectedDealer,group:selectedGroup,all:homeAll};await refresh();selectedDealer=context.dealer;selectedGroup=context.group;homeAll=context.all;showProducts();draw();}
     async function saveProductEdit(){try{await api("items/"+editItemId.value,"PATCH",{shop:editItemShop.value,serial:editItemSerial.value,product:editItemProduct.value,price:Number(editItemPrice.value),shipped:editItemShipped.value,sold:editItemSold.value,campaign:editItemCampaign.value,paid:editItemPaid.checked,vf_paid:editItemVF.checked});itemEditor.close();await refreshProductList();}catch(err){itemEditMessage.textContent=err.message;}}
+    let bulkDeleting=false;
+    async function deleteSelectedProducts(){
+      if(me.role!=="admin"||bulkDeleting)return;
+      const ids=visibleProductRows.filter(x=>selectedProductIds.has(String(x.id))).map(x=>String(x.id));
+      if(!ids.length||!confirm(ids.length+" seçili ürünün seri, satış ve ödeme kaydı silinecek. Toplu silmek istiyor musunuz?"))return;
+      bulkDeleting=true;updateSelectionCount();
+      try{await api("items/bulk-delete","POST",{ids});ids.forEach(id=>selectedProductIds.delete(id));await refreshProductList();}catch(err){alert(err.message);}finally{bulkDeleting=false;updateSelectionCount();}
+    }
     async function deleteProduct(id){if(!confirm("Bu ürünün seri, satış ve ödeme kaydı silinecek. Silmek istiyor musunuz?"))return;try{await api("items/"+id,"DELETE");selectedProductIds.delete(id);await refreshProductList();}catch(err){alert(err.message);}}
     function renderCampaignCriteriaIfReady(){if(document.getElementById("campaignMapping")){document.querySelectorAll(".campaign-choice").forEach(select=>{const key=norm(select.dataset.campaign);if(key.includes(norm("AYLIK TAAHHUTLU KAMPANYALAR"))||key.includes(norm("GNA BAYI CIHAZ KAMPANYASI")))select.value=activationCampaign(select.dataset.campaign);});renderCampaignCriteria();}}
 
