@@ -295,7 +295,7 @@ async function undoBatch(tx, u, id) {
     else {
       if (
         e.entity !== "item" ||
-        !["paid_on", "vf_paid_on", "campaign", "shipped", "sold", "cash_sale_price"].includes(
+        !["paid_on", "vf_paid_on", "campaign", "shipped", "sold", "cash_sale_price", "price"].includes(
           e.field,
         )
       )

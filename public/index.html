@@ -1473,7 +1473,7 @@
       { key: "vf", label: "Vodafone", value: vfStatus },
       { key: "age", label: "Süre", value: x=>{const days=productAge(x);return days===null?"—":days>=45?"45 gün geçti":days+" gün";} },
     ];
-    function visibleProductColumns(){return productColumns.filter(c=>(c.key==="paid"&&["vf","closed","due"].includes(productBucket)) || (!hiddenColumns.has(c.key) && !(listRules[productBucket]?.showVodafone === false && c.key === "vf")));}
+    function visibleProductColumns(){return productColumns.filter(c=>!(productBucket==="due"&&c.key==="salePrice") && ((c.key==="paid"&&["vf","closed","due"].includes(productBucket)) || (!hiddenColumns.has(c.key) && !(listRules[productBucket]?.showVodafone === false && c.key === "vf"))));}
     function renderProductTable(rows) {
       const context = items.filter((x) => contextShops().includes(x.shop) && matchesDate(x));
       const filterSource = context.filter((x) =>

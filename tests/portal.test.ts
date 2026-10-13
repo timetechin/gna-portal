@@ -979,3 +979,18 @@ test("payment due defaults safely extend old settings and cannot include VDM-pai
  bad.due.vdm="unpaid";bad.due.sales.push("tariff");expect((await api("list-settings","PUT",{rules:bad})).status).toBe(400);
  expect((await api("list-settings")).data.rules).toEqual(loaded);
 });
+
+
+test("an explicitly logged historical cost correction can be undone without changing sales or payments",async()=>{
+ const stock=(await api("import","POST",{kind:"stock",rows:[{serial:"EXPLICIT-COST-CORRECTION",shop:"Cost Correction",product:"Correction Phone",price:1559.01}]})).data.batch_id;
+ const row=(await api("items")).data.find(x=>x.serial==="EXPLICIT-COST-CORRECTION"),batch=crypto.randomUUID();
+ await db.begin(async tx=>{
+  await tx.unsafe("INSERT INTO gna_upload_batches(id,kind,filename,username,completed_at) VALUES($1,'stock','Explicit cost correction','codex',now())",[batch]);
+  await tx.unsafe("UPDATE gna_items SET price=1914 WHERE id=$1",[row.id]);
+  await tx.unsafe("INSERT INTO gna_upload_effects(batch_id,entity,record_key,field,old_value,new_value) VALUES($1,'item',$2,'price',to_jsonb($3::numeric),to_jsonb($4::numeric))",[batch,String(row.id),1559.01,1914]);
+ });
+ expect((await api("uploads/"+stock+"/undo","POST")).status).toBe(409);
+ expect((await api("uploads/"+batch+"/undo","POST")).status).toBe(200);
+ expect((await api("items")).data.find(x=>x.serial===row.serial)).toEqual(row);
+ expect((await api("uploads/"+stock+"/undo","POST")).status).toBe(200);
+});
