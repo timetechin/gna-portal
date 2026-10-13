@@ -964,3 +964,18 @@ test("stock undo remains compatible with snapshots from before serial sale price
  await db.unsafe("UPDATE gna_upload_effects SET new_value=new_value-'cash_sale_price' WHERE batch_id=$1 AND field='__created__'",[stock]);
  expect((await api("uploads/"+stock+"/undo","POST")).status).toBe(200);
 });
+
+
+test("payment due defaults safely extend old settings and cannot include VDM-paid or tariff sales",async()=>{
+ const initial=(await api("list-settings")).data;
+ expect(initial.rules.due.sales).toEqual(["stock","cash"]);expect(initial.rules.due.vdm).toBe("unpaid");
+ const legacy=structuredClone(initial.rules);delete legacy.due;
+ await db.unsafe("UPDATE gna_list_settings SET rules=$1::jsonb WHERE id=1",[legacy]);
+ const loaded=(await api("list-settings")).data.rules;
+ expect(loaded.due).toEqual(initial.defaults.due);expect(loaded.paid).toEqual(legacy.paid);
+ expect((await api("list-settings","PUT",{rules:legacy})).status).toBe(200);
+ const bad=structuredClone(loaded);bad.due.vdm="paid";
+ expect((await api("list-settings","PUT",{rules:bad})).status).toBe(400);
+ bad.due.vdm="unpaid";bad.due.sales.push("tariff");expect((await api("list-settings","PUT",{rules:bad})).status).toBe(400);
+ expect((await api("list-settings")).data.rules).toEqual(loaded);
+});

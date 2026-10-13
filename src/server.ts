@@ -86,14 +86,15 @@ await writeDb.begin(async (tx) => {
 });
 const defaultListRules = {
   active: {sales:["stock","cash","tariff","other"],vdm:"any",vf:"any",completed:false,showVodafone:true},
+  due: {sales:["stock","cash"],vdm:"unpaid",vf:"any",completed:false,showVodafone:false},
   paid: {sales:["stock","cash"],vdm:"paid",vf:"any",completed:false,showVodafone:false},
   vf: {sales:["stock"],vdm:"paid",vf:"unpaid",completed:false,showVodafone:true},
   closed: {sales:["stock","cash","tariff","other"],vdm:"paid",vf:"any",completed:true,showVodafone:true},
 };
 await run("CREATE TABLE IF NOT EXISTS gna_list_settings(id integer PRIMARY KEY CHECK(id=1),rules jsonb NOT NULL,updated_at timestamptz NOT NULL DEFAULT now())");
 function validListRules(value) {
-  if(!value || typeof value!=="object" || Array.isArray(value) || Object.keys(value).sort().join(",")!=="active,closed,paid,vf")return false;
-  if(value.vf?.vdm!=="paid" || value.closed?.vdm!=="paid")return false;
+  if(!value || typeof value!=="object" || Array.isArray(value) || Object.keys(value).sort().join(",")!=="active,closed,due,paid,vf")return false;
+  if(value.vf?.vdm!=="paid" || value.closed?.vdm!=="paid" || value.due?.vdm!=="unpaid" || value.due?.completed!==false || value.due?.sales?.some(x=>!["stock","cash"].includes(x)))return false;
   return Object.values(value).every((r:any)=>r && Object.keys(r).sort().join(",")==="completed,sales,showVodafone,vdm,vf" && Array.isArray(r.sales) && r.sales.length<=4 && new Set(r.sales).size===r.sales.length && r.sales.every(x=>["stock","cash","tariff","other"].includes(x)) && ["any","paid","unpaid"].includes(r.vdm) && ["any","paid","unpaid"].includes(r.vf) && typeof r.completed==="boolean" && typeof r.showVodafone==="boolean");
 }
 if (!(await run("SELECT username FROM gna_users LIMIT 1")).length) {
@@ -405,14 +406,14 @@ Bun.serve({
       if (path === "/api/me") return out(u);
       if(path === "/api/list-settings" && req.method === "GET") {
         const rows=await run("SELECT rules FROM gna_list_settings WHERE id=1");
-        const rules=structuredClone(rows[0]?.rules || defaultListRules);rules.vf.vdm="paid";rules.closed.vdm="paid";
+        const rules=structuredClone(rows[0]?.rules || defaultListRules);rules.vf.vdm="paid";rules.closed.vdm="paid";rules.due=rules.due||structuredClone(defaultListRules.due);rules.due.vdm="unpaid";rules.due.completed=false;
         return out({rules,defaults:defaultListRules});
       }
       if(path === "/api/list-settings" && req.method === "PUT") {
         if(u.role!=="admin")return bad("Yönetici yetkisi gerekli",403);
-        const b=await req.json();if(!validListRules(b.rules))return bad("Liste kuralları geçersiz",400);
-        await run("INSERT INTO gna_list_settings(id,rules) VALUES(1,$1::jsonb) ON CONFLICT(id) DO UPDATE SET rules=excluded.rules,updated_at=now()",[b.rules]);
-        return out({rules:b.rules,defaults:defaultListRules});
+        const b=await req.json();const rules=b.rules && typeof b.rules==="object" && !Array.isArray(b.rules)?{...b.rules,due:b.rules.due||structuredClone(defaultListRules.due)}:b.rules;if(!validListRules(rules))return bad("Liste kuralları geçersiz",400);
+        await run("INSERT INTO gna_list_settings(id,rules) VALUES(1,$1::jsonb) ON CONFLICT(id) DO UPDATE SET rules=excluded.rules,updated_at=now()",[rules]);
+        return out({rules,defaults:defaultListRules});
       }
 
       if (path === "/api/imports" && req.method === "GET") {

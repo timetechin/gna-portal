@@ -588,11 +588,17 @@
       }
     }
     let listRules={}, defaultListRules={};
-    const ruleNames={active:"Bayi Ürünleri",paid:"VDM’ye Ödenenler",vf:"VF Ödeme Bekleyenler",closed:"Tamamlananlar"};
+    const ruleNames={active:"Bayi Ürünleri",due:"VDM’ye Ödenmesi Gerekenler",paid:"VDM’ye Ödenenler",vf:"VF Ödeme Bekleyenler",closed:"Tamamlananlar"};
     async function loadListRules(){const data=await api("list-settings");listRules=data.rules;defaultListRules=data.defaults;}
-    function renderListRules(rules){listRuleForms.innerHTML=Object.entries(ruleNames).map(([key,name])=>{const r=rules[key];return `<div class="card" data-rule="${key}"><h4>${name}</h4><label style="display:block"><input type="checkbox" data-vdm-required ${r.vdm==="paid"?"checked":""} ${["vf","closed"].includes(key)?"disabled":""} onchange="toggleRequiredVdm(this)"> VDM’ye ödendiyse işlem başlat${["vf","closed"].includes(key)?" (zorunlu)":""}</label><p>Gösterilecek satış durumları</p>${[["stock","Stokta"],["cash","Peşin Satış"],["tariff","Tarifeye Ek"],["other","Diğer"]].map(([v,n])=>`<label style="display:block"><input type="checkbox" data-sale="${v}" ${r.sales.includes(v)?"checked":""}> ${n}</label>`).join("")}${[["vdm","VDM ödeme koşulu"],["vf","VF ödeme koşulu"]].map(([v,n])=>`<label style="display:block">${n}<select data-condition="${v}" ${v==="vdm"&&["vf","closed"].includes(key)?"disabled":""} onchange="syncRequiredVdm(this)">${[["any","Ödenmiş veya ödenmemiş"],["paid","Yalnızca ödenmiş"],["unpaid","Yalnızca ödenmemiş"]].map(([value,label])=>`<option value="${value}" ${r[v]===value?"selected":""}>${label}</option>`).join("")}</select></label>`).join("")}<label style="display:block"><input type="checkbox" data-completed ${r.completed?"checked":""}> Yalnızca tamamlananlar (VDM’ye ödenmiş peşin satış veya VF ödenmiş)</label><label style="display:block"><input type="checkbox" data-vodafone ${r.showVodafone?"checked":""}> Vodafone sütununu göster</label></div>`;}).join("");}
+    function renderListRules(rules){
+      listRuleForms.innerHTML=Object.entries(ruleNames).map(([key,name])=>{
+        const r=rules[key],due=key==="due",locked=["vf","closed"].includes(key);
+        const sales=[["stock","Stokta"],["cash","Peşin Satış"],["tariff","Tarifeye Ek"],["other","Diğer"]].filter(([v])=>!due||["stock","cash"].includes(v));
+        return `<div class="card" data-rule="${key}"><h4>${name}</h4>${due?"<p><b>VDM’ye ödenmemiş olmalı (zorunlu).</b> Stokta ise alım tarihinden en az 45 gün geçmiş olmalı; peşin satışlar yaşına bakılmadan dahil edilir.</p>":`<label style="display:block"><input type="checkbox" data-vdm-required ${r.vdm==="paid"?"checked":""} ${locked?"disabled":""} onchange="toggleRequiredVdm(this)"> VDM’ye ödendiyse işlem başlat${locked?" (zorunlu)":""}</label>`}<p>Gösterilecek satış durumları</p>${sales.map(([v,n])=>`<label style="display:block"><input type="checkbox" data-sale="${v}" ${r.sales.includes(v)?"checked":""}> ${n}</label>`).join("")}${[["vdm","VDM ödeme koşulu"],["vf","VF ödeme koşulu"]].map(([v,n])=>`<label style="display:block">${n}<select data-condition="${v}" ${v==="vdm"&&(locked||due)?"disabled":""} onchange="syncRequiredVdm(this)">${[["any","Ödenmiş veya ödenmemiş"],["paid","Yalnızca ödenmiş"],["unpaid","Yalnızca ödenmemiş"]].map(([value,label])=>`<option value="${value}" ${r[v]===value?"selected":""}>${label}</option>`).join("")}</select></label>`).join("")}<label style="display:block"><input type="checkbox" data-completed ${r.completed?"checked":""} ${due?"disabled":""}> Yalnızca tamamlananlar (VDM’ye ödenmiş peşin satış veya VF ödenmiş)</label><label style="display:block"><input type="checkbox" data-vodafone ${r.showVodafone?"checked":""}> Vodafone sütununu göster</label></div>`;
+      }).join("");
+    }
     function toggleRequiredVdm(input){input.closest('[data-rule]').querySelector('[data-condition="vdm"]').value=input.checked?"paid":"any";}
-    function syncRequiredVdm(select){if(select.dataset.condition==="vdm")select.closest('[data-rule]').querySelector('[data-vdm-required]').checked=select.value==="paid";}
+    function syncRequiredVdm(select){if(select.dataset.condition==="vdm"&&select.closest('[data-rule]').querySelector('[data-vdm-required]'))select.closest('[data-rule]').querySelector('[data-vdm-required]').checked=select.value==="paid";}
     async function showListSettings(){try{await loadListRules();renderListRules(listRules);listRulesMessage.textContent="";}catch(err){listRulesMessage.textContent=err.message;}}
     function resetListSettings(){renderListRules(defaultListRules);listRulesMessage.textContent="Varsayılanlar forma getirildi. Uygulamak için Toplu Kaydet’e basın.";}
     async function saveListSettings(){const rules={};document.querySelectorAll('[data-rule]').forEach(form=>{rules[form.dataset.rule]={sales:[...form.querySelectorAll('[data-sale]:checked')].map(x=>x.dataset.sale),vdm:form.querySelector('[data-condition="vdm"]').value,vf:form.querySelector('[data-condition="vf"]').value,completed:form.querySelector('[data-completed]').checked,showVodafone:form.querySelector('[data-vodafone]').checked};});try{const data=await api("list-settings","PUT",{rules});listRules=data.rules;columnFilters={};draw();listRulesMessage.textContent="Liste kuralları kaydedildi. Diğer açık oturumlarda sayfayı yenileyince uygulanır.";}catch(err){listRulesMessage.textContent=err.message;}}
@@ -1425,7 +1431,9 @@
       if (x.campaign === "Peşin Satış") return "Vodafone’dan alacak yok";
       return "—";
     }
+    function vdmDue(x){const age=productAge(x);return !x.paid_on && (x.campaign==="Peşin Satış" || (!x.campaign && age!==null && age>=45)) && matchesListRule(x,listRules.due);}
     function inProductBucket(x, bucket) {
+      if(bucket==="due")return vdmDue(x);
       if (listRules[bucket]) return (!["vf","closed"].includes(bucket)||!!x.paid_on) && matchesListRule(x,listRules[bucket]);
       if (bucket === "vf") return vfWaiting(x);
       if (bucket === "consignment") return !x.campaign;
@@ -1465,7 +1473,7 @@
       { key: "vf", label: "Vodafone", value: vfStatus },
       { key: "age", label: "Süre", value: x=>{const days=productAge(x);return days===null?"—":days>=45?"45 gün geçti":days+" gün";} },
     ];
-    function visibleProductColumns(){return productColumns.filter(c=>(c.key==="paid"&&["vf","closed"].includes(productBucket)) || (!hiddenColumns.has(c.key) && !(listRules[productBucket]?.showVodafone === false && c.key === "vf")));}
+    function visibleProductColumns(){return productColumns.filter(c=>(c.key==="paid"&&["vf","closed","due"].includes(productBucket)) || (!hiddenColumns.has(c.key) && !(listRules[productBucket]?.showVodafone === false && c.key === "vf")));}
     function renderProductTable(rows) {
       const context = items.filter((x) => contextShops().includes(x.shop) && matchesDate(x));
       const filterSource = context.filter((x) =>
@@ -1478,6 +1486,7 @@
             "Bayi Ürünleri",
             context.filter(x=>inProductBucket(x,"active")).length,
           ],
+          ["due", "VDM’ye Ödenmesi Gerekenler", context.filter(vdmDue).length],
           [
             "paid",
             "VDM’ye Ödenenler",
