@@ -588,7 +588,7 @@
       }
     }
     let listRules={}, defaultListRules={};
-    const ruleNames={active:"Bayi Ürünleri",due:"VDM’ye Ödenmesi Gerekenler",paid:"VDM’ye Ödenenler",vf:"VF Ödeme Bekleyenler",closed:"Tamamlananlar"};
+    const ruleNames={active:"Bayi Ürünleri",due:"VDM’ye Ödenmesi Gerekenler",paid:"VDM’ye Ödenenler",vf:"VF Ödeme Bekleyenler",closed:"VF Tarafından Bayiye Ödenenler"};
     async function loadListRules(){const data=await api("list-settings");listRules=data.rules;defaultListRules=data.defaults;}
     function renderListRules(rules){
       listRuleForms.innerHTML=Object.entries(ruleNames).map(([key,name])=>{
@@ -1495,7 +1495,7 @@
           ["vf", "VF Ödeme Bekleyenler", context.filter(vfWaiting).length],
           [
             "closed",
-            "Tamamlananlar",
+            "VF Tarafından Bayiye Ödenenler",
             context.filter(x=>inProductBucket(x,"closed")).length,
           ],
         ]
