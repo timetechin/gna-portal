@@ -427,7 +427,7 @@
               <p>
                 Kampanya, seri ve tarih sütunlarını seçebilirsiniz. Satış alt kriterlerini aşağıdan belirleyin.
               </p>
-              <label>AYLIK TAAHHUTLU KAMPANYALAR <select id="defaultTariff" onchange="renderCampaignCriteriaIfReady()"><option value="Tarifeye Ek">Tarifeye Ek</option><option value="Peşin Satış">Peşin Satış</option><option value="">İşleme Alma</option></select></label><label>GNA BAYI CIHAZ KAMPANYASI <select id="defaultCash" onchange="renderCampaignCriteriaIfReady()"><option value="Peşin Satış">Peşin Satış</option><option value="Tarifeye Ek">Tarifeye Ek</option><option value="">İşleme Alma</option></select></label>
+              <label>AYLIK TAAHHUTLU KAMPANYALAR <select id="defaultTariff" onchange="renderCampaignCriteriaIfReady()"><option value="Tarifeye Ek">Tarifeye Ek</option><option value="Peşin Satış">Peşin Satış</option><option value="">İşleme Alma</option></select></label><label>PESIN SATIS KAMPANYASI <select id="defaultAdditionalTariff" onchange="renderCampaignCriteriaIfReady()"><option value="Tarifeye Ek">Tarifeye Ek</option><option value="Peşin Satış">Peşin Satış</option><option value="">İşleme Alma</option></select></label><label>GNA BAYI CIHAZ KAMPANYASI <select id="defaultCash" onchange="renderCampaignCriteriaIfReady()"><option value="Peşin Satış">Peşin Satış</option><option value="Tarifeye Ek">Tarifeye Ek</option><option value="">İşleme Alma</option></select></label>
               <input
                 type="file"
                 id="activationfile"
@@ -1414,7 +1414,9 @@
           : String(value);
     function activationCampaign(value) {
       const key = norm(value);
-      return key.includes(norm("AYLIK TAAHHUTLU KAMPANYALAR"))
+      return key.includes(norm("PESIN SATIS KAMPANYASI"))
+        ? document.getElementById("defaultAdditionalTariff")?.value??"Tarifeye Ek"
+        : key.includes(norm("AYLIK TAAHHUTLU KAMPANYALAR"))
         ? document.getElementById("defaultTariff")?.value??"Tarifeye Ek"
         : key.includes(norm("GNA BAYI CIHAZ KAMPANYASI"))
           ? document.getElementById("defaultCash")?.value??"Peşin Satış"
@@ -1799,7 +1801,7 @@
       try{await api("items/bulk-delete","POST",{ids});ids.forEach(id=>selectedProductIds.delete(id));await refreshProductList();}catch(err){alert(err.message);}finally{bulkDeleting=false;updateSelectionCount();}
     }
     async function deleteProduct(id){if(!confirm("Bu ürünün seri, satış ve ödeme kaydı silinecek. Silmek istiyor musunuz?"))return;try{await api("items/"+id,"DELETE");selectedProductIds.delete(id);await refreshProductList();}catch(err){alert(err.message);}}
-    function renderCampaignCriteriaIfReady(){if(document.getElementById("campaignMapping")){document.querySelectorAll(".campaign-choice").forEach(select=>{const key=norm(select.dataset.campaign);if(key.includes(norm("AYLIK TAAHHUTLU KAMPANYALAR"))||key.includes(norm("GNA BAYI CIHAZ KAMPANYASI")))select.value=activationCampaign(select.dataset.campaign);});renderCampaignCriteria();}}
+    function renderCampaignCriteriaIfReady(){if(document.getElementById("campaignMapping")){document.querySelectorAll(".campaign-choice").forEach(select=>{const key=norm(select.dataset.campaign);if(key.includes(norm("AYLIK TAAHHUTLU KAMPANYALAR"))||key.includes(norm("PESIN SATIS KAMPANYASI"))||key.includes(norm("GNA BAYI CIHAZ KAMPANYASI")))select.value=activationCampaign(select.dataset.campaign);});renderCampaignCriteria();}}
 
     const paymentFiles={}, paymentLoads={}, serialHeaders=["SeriNo","Seri No","Seri Numarası","SeriNumarasi","Cihaz Seri Numarası","Cihaz Seri No","Cihaz IMEI","IMEI","IMEI No","IMEI Numarası","Seri / IMEI","Seri","Ürün Seri No"], paymentDateHeaders=["Ödeme Tarihi","OdemeTarihi","Tahsilat Tarihi","VF Ödeme Tarihi","Ödendiği Tarih","İşlem Tarihi","IslemTarihi","Dekont Tarihi","Tarih"], paymentShopHeaders=["Bayi","Bayi Adı","MusteriKisaAd","Müşteri Kısa Ad","SHOP","Şube"];
     function normalizeSerial(value){let text=str(value).replace(/^'/,"").replace(/[\s\u200b\ufeff]/g,"");if(/^\d+[.,]0+$/.test(text))text=text.replace(/[.,]0+$/,"");if(/^\d+(?:[.,]\d+)?e[+-]?\d+$/i.test(text)){const number=Number(text.replace(",","."));if(Number.isSafeInteger(number))text=String(number);}return text;}

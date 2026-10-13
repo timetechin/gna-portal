@@ -327,6 +327,8 @@ const workbook = (rows) => {
   await page.waitForFunction(()=>paymentmsg.textContent.includes('Bu dosya aktivasyon raporu'));
   await page.getByRole('button',{name:'Vodafone Aktivasyonlarında Aç',exact:true}).click();
   await page.waitForSelector('#activation-serial');
+  assert.equal(await page.evaluate(()=>activationCampaign('PESIN   SATIS KAMPANYASI')),'Tarifeye Ek');
+  assert.equal(await page.evaluate(()=>activationCampaign('Peşin Satış Kampanyası')),'Tarifeye Ek');
   const route=await page.evaluate(row=>({serial:activationColumn(row,'serial',['Cihaz IMEI'],7),campaign:chosenCampaign(activationColumn(row,'campaign',['Cihaz Kampanya Adı'],4))}),{'Cihaz IMEI':200000400026239,'Cihaz Kampanya Adı':'GNA BAYI CIHAZ KAMPANYASI'});
   assert.equal(String(route.serial),'200000400026239');assert.equal(route.campaign,'Peşin Satış');
   if(process.env.GNA_ACTIVATION_SAMPLE){
