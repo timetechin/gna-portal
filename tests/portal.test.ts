@@ -1097,14 +1097,17 @@ test("original XLSX/XLS archives preserve bytes, permissions and undo history", 
 
 
 test("duplicate serial report normalizes formats and is administrator-only", async () => {
-  for(const [serial,shop] of [["DUPLICATE-REPORT-01","Girne Çarşı"],[" DUPLICATE- REPORT-01 ","Girne Çarşı"],["DUPLICATE-REPORT-01","Yenikent"],["UNIQUE-REPORT-01","Yenikent"],["2001234567890","Girne Çarşı"],["2.001234567890e12","Yenikent"]])
+  for(const [serial,shop] of [["DUPLICATE-REPORT-01","Girne Çarşı"],[" DUPLICATE- REPORT-01 ","Girne Çarşı"],["DUPLICATE-REPORT-01","Yenikent"],["UNIQUE-REPORT-01","Yenikent"],["2001234567890","Girne Çarşı"],["2.001234567890e12","Girne Çarşı"]])
     await db.unsafe("INSERT INTO gna_items(serial,shop,product,price) VALUES($1,$2,'Duplicate report fixture',1)",[serial,shop]);
   try {
-    const report=await api("duplicate-items");
+    expect((await api("duplicate-items")).status).toBe(400);
+    const report=await api("duplicate-items?shop="+encodeURIComponent("Girne Çarşı"));
     expect(report.status).toBe(200);
     const same=report.data.groups.find(g=>g.serial==="DUPLICATE-REPORT-01");
-    expect(same.records.length).toBe(3);
-    expect(new Set(same.records.map(r=>r.shop)).size).toBe(2);
+    expect(same.records.length).toBe(2);
+    expect(same.records.every(r=>r.shop==="Girne Çarşı")).toBe(true);
+    const other=await api("duplicate-items?shop="+encodeURIComponent("Yenikent"));
+    expect(other.data.groups.some(g=>g.serial==="DUPLICATE-REPORT-01")).toBe(false);
     expect(report.data.groups.find(g=>g.serial==="2001234567890").records.length).toBe(2);
     expect(report.data.groups.some(g=>g.serial==="UNIQUE-REPORT-01")).toBe(false);
     expect((await api("duplicate-items","GET",undefined,dealerCookie)).status).toBe(403);

@@ -131,16 +131,18 @@ const workbook = (rows) => {
   await page.goto("http://127.0.0.1:3303");
   await login("admin");
   await nav("Bayi Carileri");
-  assert.equal(await page.getByRole("button",{name:"Mükerrer Kayıtları Göster",exact:true}).count(),1);
+  assert.equal(await page.locator("#dealerlist").getByRole("button",{name:"Mükerrer Kayıtları Göster",exact:true}).count(),0);
   const duplicateSeed=await page.evaluate(async()=>{
-    const response=await fetch("/api/import",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({kind:"stock",filename:"duplicate-browser.xlsx",rows:[{serial:"2BROWSER-DUPLICATE",shop:"Girne Çarşı",product:"Duplicate Browser",price:1},{serial:"2BROWSER-DUPLICATE",shop:"Yenikent",product:"Duplicate Browser",price:1}]})});
+    const response=await fetch("/api/import",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({kind:"stock",filename:"duplicate-browser.xlsx",rows:[{serial:"2BROWSER-DUPLICATE",shop:"Girne Çarşı",product:"Duplicate Browser",price:1},{serial:"'2BROWSER-DUPLICATE",shop:"Girne Çarşı",product:"Duplicate Browser",price:1},{serial:"2BROWSER-DUPLICATE",shop:"Yenikent",product:"Duplicate Browser",price:1}]})});
     if(!response.ok)throw Error("Duplicate fixture failed");return response.json();
   });
+  await openDealer("Girne Çarşı");
+  assert.equal(await page.locator("#productlist #showDuplicateRecordsButton").isVisible(),true);
   await page.getByRole("button",{name:"Mükerrer Kayıtları Göster",exact:true}).click();
   await page.locator("#duplicateRecordsSearch").fill("2BROWSER-DUPLICATE");
   await page.waitForFunction(()=>document.querySelectorAll("#duplicateRecordsTable tbody tr").length===2);
   assert((await page.locator("#duplicateRecordsTable").innerText()).includes("Girne Çarşı"));
-  assert((await page.locator("#duplicateRecordsTable").innerText()).includes("Yenikent"));
+  assert(!(await page.locator("#duplicateRecordsTable").innerText()).includes("Yenikent"));
   const [duplicateDownload]=await Promise.all([page.waitForEvent("download"),page.locator("#duplicateRecordsDialog").getByRole("button",{name:"Excel’e Aktar",exact:true}).click()]);
   const duplicateWB=XLSX.readFile(await duplicateDownload.path());
   assert.equal(XLSX.utils.sheet_to_json(duplicateWB.Sheets[duplicateWB.SheetNames[0]]).length,2);
