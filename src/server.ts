@@ -553,6 +553,24 @@ Bun.serve({
           ),
         );
       if (u.role !== "admin") return bad("Yönetici yetkisi gerekli", 403);
+      if (path === "/api/duplicate-items" && req.method === "GET") {
+        const records = await run("SELECT id,serial,shop,product,price,shipped,campaign,sold FROM gna_items ORDER BY id");
+        const bySerial = new Map();
+        for (const record of records) {
+          let serial = String(record.serial || "").trim().replace(/^'/, "").replace(/[\s\u200b\ufeff]/g, "");
+          if (/^\d+[.,]0+$/.test(serial)) serial = serial.replace(/[.,]0+$/, "");
+          if (/^\d+(?:[.,]\d+)?e[+-]?\d+$/i.test(serial)) {
+            const value = Number(serial.replace(",", "."));
+            if (Number.isSafeInteger(value)) serial = String(value);
+          }
+          if (!serial) continue;
+          if (!bySerial.has(serial)) bySerial.set(serial, []);
+          bySerial.get(serial).push(record);
+        }
+        const groups = [...bySerial].filter(([,records])=>records.length>1).map(([serial,records])=>({serial,records}));
+        groups.sort((a,b)=>a.serial.localeCompare(b.serial));
+        return out({groups});
+      }
       const uploadFilePath = path.match(/^\/api\/uploads\/([0-9a-f-]{36})\/file$/i);
       if (uploadFilePath && req.method === "GET") {
         const [file] = await run("SELECT b.filename,encode(f.content,'base64') content FROM gna_upload_files f JOIN gna_upload_batches b ON b.id=f.batch_id WHERE f.batch_id=$1", [uploadFilePath[1]]);

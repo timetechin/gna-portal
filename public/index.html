@@ -695,8 +695,44 @@
       productlist.hidden = true;
       updateExportButtons();
       dealerlist.innerHTML =
+        (me.role === "admin" ? '<button id="showDuplicateRecords" class="btn" onclick="showDuplicateRecords()">Mükerrer Kayıtları Göster</button> ' : "") +
         '<input id="dealerSearch" aria-label="Bayi veya ana cari ara" placeholder="Bayi veya ana cari ara" oninput="filterDealers()"><div id="dealerRows"></div>';
       filterDealers();
+    }
+    let duplicateRecords = [];
+    async function showDuplicateRecords() {
+      if (me.role !== "admin" || document.getElementById("duplicateRecordsDialog")) return;
+      const dialog = document.createElement("dialog");
+      dialog.id = "duplicateRecordsDialog";
+      dialog.style.cssText = "width:min(1100px,94vw);max-height:85vh;overflow:auto;border:1px solid #ccc;border-radius:12px;padding:24px";
+      dialog.innerHTML = '<h3>Mükerrer Kayıtlar</h3><p>Aynı seri/IMEI’nin aynı veya farklı bayilerde tekrar ettiği kayıtlar gösterilir. Boşluk, baştaki kesme işareti ve sayısal Excel yazımı farkları dikkate alınır.</p><p id="duplicateRecordsStatus" role="status">Kayıtlar kontrol ediliyor…</p><label>Seri / bayi / ürün ara <input id="duplicateRecordsSearch" oninput="renderDuplicateRecords()"></label><button onclick="exportDuplicateRecords()">Excel’e Aktar</button><div id="duplicateRecordsTable" class="scroll"></div><button data-close class="btn">Kapat</button>';
+      const close = () => {dialog.close();dialog.remove();duplicateRecords=[];};
+      dialog.querySelector("[data-close]").onclick = close;
+      dialog.addEventListener("cancel",event=>{event.preventDefault();close();});
+      document.body.append(dialog);dialog.showModal();
+      try {
+        const result = await api("duplicate-items");
+        if (!dialog.isConnected) return;
+        duplicateRecords = result.groups.flatMap(group=>group.records.map(record=>({...record,duplicateSerial:group.serial,duplicateCount:group.records.length})));
+        duplicateRecordsStatus.textContent = result.groups.length ? result.groups.length + " mükerrer seri / IMEI · " + duplicateRecords.length + " kayıt" : "Mükerrer kayıt bulunamadı.";
+        renderDuplicateRecords();
+      } catch (error) {if(dialog.isConnected)duplicateRecordsStatus.textContent = "Hata: " + error.message;}
+    }
+    function visibleDuplicateRecords() {
+      const q = norm(document.getElementById("duplicateRecordsSearch")?.value || "");
+      return duplicateRecords.filter(record=>!q || norm([record.duplicateSerial,record.serial,shopName(record.shop),record.shop,record.product].join(" ")).includes(q));
+    }
+    function renderDuplicateRecords() {
+      if (me.role !== "admin") return;
+      const rows = visibleDuplicateRecords();
+      duplicateRecordsTable.innerHTML = rows.length ? '<table><thead><tr>' + ["Ortak Seri / IMEI","Tekrar","Kayıt No","Kayıtlı Seri / IMEI","Bayi","Ana Cari","Ürün","Alım Tarihi","Satış Durumu"].map(name=>'<th>'+name+'</th>').join("") + '</tr></thead><tbody>' + rows.map(record=>{
+        const dealer=directory.dealers.find(d=>d.shop===record.shop),account=directory.groups.find(g=>String(g.id)===String(dealer?.account_id));
+        return '<tr>'+[record.duplicateSerial,record.duplicateCount,record.id,record.serial,shopName(record.shop),account?.name||"—",record.product||"—",dateDisplay(record.shipped),record.campaign||"Stokta"].map(value=>'<td>'+e(value)+'</td>').join("")+'</tr>';
+      }).join("")+'</tbody></table>' : '<p>'+ (duplicateRecords.length ? 'Aramaya uygun kayıt bulunamadı.' : 'Mükerrer kayıt bulunamadı.') + '</p>';
+    }
+    function exportDuplicateRecords() {
+      if(me.role!=="admin")return;
+      writeExcel("mukerrer-kayitlar",["Ortak Seri / IMEI","Tekrar","Kayıt No","Kayıtlı Seri / IMEI","Bayi","Ürün","Alım Tarihi","Satış Durumu"],visibleDuplicateRecords().map(record=>[record.duplicateSerial,record.duplicateCount,record.id,record.serial,shopName(record.shop),record.product||"",record.shipped||"",record.campaign||"Stokta"]));
     }
     function filterDealers() {
       const q = dealerSearch.value.toLocaleLowerCase("tr");

@@ -1094,3 +1094,22 @@ test("original XLSX/XLS archives preserve bytes, permissions and undo history", 
   expect((await api("imports")).data.find(x=>x.id===nofile.data.batch_id).file_available).toBe(false);
   expect((await fetch(base+path,{method:"PUT",headers:{Cookie:adminCookie},body:Buffer.alloc(20*1024*1024+1)})).status).toBe(413);
 });
+
+
+test("duplicate serial report normalizes formats and is administrator-only", async () => {
+  for(const [serial,shop] of [["DUPLICATE-REPORT-01","Girne Çarşı"],[" DUPLICATE- REPORT-01 ","Girne Çarşı"],["DUPLICATE-REPORT-01","Yenikent"],["UNIQUE-REPORT-01","Yenikent"],["2001234567890","Girne Çarşı"],["2.001234567890e12","Yenikent"]])
+    await db.unsafe("INSERT INTO gna_items(serial,shop,product,price) VALUES($1,$2,'Duplicate report fixture',1)",[serial,shop]);
+  try {
+    const report=await api("duplicate-items");
+    expect(report.status).toBe(200);
+    const same=report.data.groups.find(g=>g.serial==="DUPLICATE-REPORT-01");
+    expect(same.records.length).toBe(3);
+    expect(new Set(same.records.map(r=>r.shop)).size).toBe(2);
+    expect(report.data.groups.find(g=>g.serial==="2001234567890").records.length).toBe(2);
+    expect(report.data.groups.some(g=>g.serial==="UNIQUE-REPORT-01")).toBe(false);
+    expect((await api("duplicate-items","GET",undefined,dealerCookie)).status).toBe(403);
+    expect((await api("duplicate-items","GET",undefined,"")).status).toBe(401);
+    const preview=await fetch(base+"/api/duplicate-items",{headers:{Cookie:adminCookie,"x-gna-preview-shop":encodeURIComponent("Girne Çarşı")}});
+    expect(preview.status).toBe(403);
+  } finally {await db.unsafe("DELETE FROM gna_items WHERE product='Duplicate report fixture'");}
+});

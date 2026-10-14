@@ -131,6 +131,24 @@ const workbook = (rows) => {
   await page.goto("http://127.0.0.1:3303");
   await login("admin");
   await nav("Bayi Carileri");
+  assert.equal(await page.getByRole("button",{name:"Mükerrer Kayıtları Göster",exact:true}).count(),1);
+  const duplicateSeed=await page.evaluate(async()=>{
+    const response=await fetch("/api/import",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({kind:"stock",filename:"duplicate-browser.xlsx",rows:[{serial:"2BROWSER-DUPLICATE",shop:"Girne Çarşı",product:"Duplicate Browser",price:1},{serial:"2BROWSER-DUPLICATE",shop:"Yenikent",product:"Duplicate Browser",price:1}]})});
+    if(!response.ok)throw Error("Duplicate fixture failed");return response.json();
+  });
+  await page.getByRole("button",{name:"Mükerrer Kayıtları Göster",exact:true}).click();
+  await page.locator("#duplicateRecordsSearch").fill("2BROWSER-DUPLICATE");
+  await page.waitForFunction(()=>document.querySelectorAll("#duplicateRecordsTable tbody tr").length===2);
+  assert((await page.locator("#duplicateRecordsTable").innerText()).includes("Girne Çarşı"));
+  assert((await page.locator("#duplicateRecordsTable").innerText()).includes("Yenikent"));
+  const [duplicateDownload]=await Promise.all([page.waitForEvent("download"),page.locator("#duplicateRecordsDialog").getByRole("button",{name:"Excel’e Aktar",exact:true}).click()]);
+  const duplicateWB=XLSX.readFile(await duplicateDownload.path());
+  assert.equal(XLSX.utils.sheet_to_json(duplicateWB.Sheets[duplicateWB.SheetNames[0]]).length,2);
+  await page.locator("#duplicateRecordsSearch").fill("NO-MATCH-DUPLICATE");
+  assert((await page.locator("#duplicateRecordsTable").innerText()).includes("Aramaya uygun kayıt bulunamadı"));
+  await page.locator("#duplicateRecordsDialog [data-close]").click();
+  await page.evaluate(async id=>{const r=await fetch("/api/uploads/"+id+"/undo",{method:"POST"});if(!r.ok)throw Error("Duplicate fixture undo failed");},duplicateSeed.batch_id);
+  await nav("Bayi Carileri");
   assert(
     (await page.locator("#dealerRows").innerText()).includes("Ortak Ana Cari"),
   );
@@ -690,6 +708,7 @@ const workbook = (rows) => {
   );
   await nav("Bayi Carileri");
   assert(!(await page.locator("#dealerRows").innerText()).includes("Yenikent"));
+  assert.equal(await page.getByRole("button",{name:"Mükerrer Kayıtları Göster",exact:true}).count(),0);
   assert.deepEqual(errors, []);
   console.log(
     "PASS: main/sub-dealer navigation, settings isolation, column multiselect filters, actual E/H XLSX classification, date import, monthly profit, VDM/VF queues, full file undo, zero-padded customer import, legacy safeguards and dealer permissions.",
