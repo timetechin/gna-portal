@@ -317,7 +317,7 @@
             <div id="dealerAliases" class="admin"></div>
             <button onclick="resetColumnFilters()">
               Sütun filtrelerini temizle
-            </button>
+            </button><button id="showDuplicateRecordsButton" class="admin" disabled title="Önce bir bayi seçin" onclick="showDuplicateRecords()">Mükerrer Kayıtları Göster</button>
             <input
               id="search"
               placeholder="Seri veya ürün ara"
@@ -695,23 +695,23 @@
       productlist.hidden = true;
       updateExportButtons();
       dealerlist.innerHTML =
-        (me.role === "admin" ? '<button id="showDuplicateRecords" class="btn" onclick="showDuplicateRecords()">Mükerrer Kayıtları Göster</button> ' : "") +
         '<input id="dealerSearch" aria-label="Bayi veya ana cari ara" placeholder="Bayi veya ana cari ara" oninput="filterDealers()"><div id="dealerRows"></div>';
       filterDealers();
     }
     let duplicateRecords = [];
     async function showDuplicateRecords() {
-      if (me.role !== "admin" || document.getElementById("duplicateRecordsDialog")) return;
+      if (me.role !== "admin" || !selectedDealer || document.getElementById("duplicateRecordsDialog")) return;
+      const duplicateShop = selectedDealer;
       const dialog = document.createElement("dialog");
       dialog.id = "duplicateRecordsDialog";
       dialog.style.cssText = "width:min(1100px,94vw);max-height:85vh;overflow:auto;border:1px solid #ccc;border-radius:12px;padding:24px";
-      dialog.innerHTML = '<h3>Mükerrer Kayıtlar</h3><p>Aynı seri/IMEI’nin aynı veya farklı bayilerde tekrar ettiği kayıtlar gösterilir. Boşluk, baştaki kesme işareti ve sayısal Excel yazımı farkları dikkate alınır.</p><p id="duplicateRecordsStatus" role="status">Kayıtlar kontrol ediliyor…</p><label>Seri / bayi / ürün ara <input id="duplicateRecordsSearch" oninput="renderDuplicateRecords()"></label><button onclick="exportDuplicateRecords()">Excel’e Aktar</button><div id="duplicateRecordsTable" class="scroll"></div><button data-close class="btn">Kapat</button>';
+      dialog.innerHTML = '<h3>Mükerrer Kayıtlar · ' + e(shopName(duplicateShop)) + '</h3><p>Yalnızca seçili bayinin kendi kayıtlarında tekrarlanan seri/IMEI’ler gösterilir. Boşluk, baştaki kesme işareti ve sayısal Excel yazımı farkları dikkate alınır.</p><p id="duplicateRecordsStatus" role="status">Kayıtlar kontrol ediliyor…</p><label>Seri / bayi / ürün ara <input id="duplicateRecordsSearch" oninput="renderDuplicateRecords()"></label><button onclick="exportDuplicateRecords()">Excel’e Aktar</button><div id="duplicateRecordsTable" class="scroll"></div><button data-close class="btn">Kapat</button>';
       const close = () => {dialog.close();dialog.remove();duplicateRecords=[];};
       dialog.querySelector("[data-close]").onclick = close;
       dialog.addEventListener("cancel",event=>{event.preventDefault();close();});
       document.body.append(dialog);dialog.showModal();
       try {
-        const result = await api("duplicate-items");
+        const result = await api("duplicate-items?shop=" + encodeURIComponent(duplicateShop));
         if (!dialog.isConnected) return;
         duplicateRecords = result.groups.flatMap(group=>group.records.map(record=>({...record,duplicateSerial:group.serial,duplicateCount:group.records.length})));
         duplicateRecordsStatus.textContent = result.groups.length ? result.groups.length + " mükerrer seri / IMEI · " + duplicateRecords.length + " kayıt" : "Mükerrer kayıt bulunamadı.";
@@ -1102,6 +1102,8 @@
     }
 
     function draw() {
+      showDuplicateRecordsButton.disabled = !selectedDealer;
+      showDuplicateRecordsButton.title = selectedDealer ? shopName(selectedDealer) + " bayisinin mükerrer kayıtları" : "Önce bir bayi seçin";
       let q = (search.value || "").toLocaleLowerCase("tr"),
         filtered = items.filter(
           (x) =>

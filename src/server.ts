@@ -554,7 +554,9 @@ Bun.serve({
         );
       if (u.role !== "admin") return bad("Yönetici yetkisi gerekli", 403);
       if (path === "/api/duplicate-items" && req.method === "GET") {
-        const records = await run("SELECT id,serial,shop,product,price,shipped,campaign,sold FROM gna_items ORDER BY id");
+        const shop = String(new URL(req.url).searchParams.get("shop") || "").trim();
+        if (!shop || shop.length > 200) return bad("Mükerrer kontrolü için bir bayi seçin", 400);
+        const records = await run("SELECT id,serial,shop,product,price,shipped,campaign,sold FROM gna_items WHERE shop=$1 ORDER BY id", [shop]);
         const bySerial = new Map();
         for (const record of records) {
           let serial = String(record.serial || "").trim().replace(/^'/, "").replace(/[\s\u200b\ufeff]/g, "");
