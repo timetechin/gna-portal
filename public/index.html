@@ -1259,6 +1259,51 @@
       }
     }
 
+    async function confirmUploadTargets(type, filename, rows) {
+      directory = await api("directory");
+      const active = directory.dealers.filter(d => d.active && (!d.account_id || directory.groups.some(g => String(g.id) === String(d.account_id) && g.active)));
+      const groups = new Map(), serialShops = new Map();
+      if (type === "payment") for (const item of items) {
+        const serial = normalizeSerial(item.serial);
+        if (!serialShops.has(serial)) serialShops.set(serial, new Set());
+        serialShops.get(serial).add(item.shop);
+      }
+      for (const row of rows) {
+        let source = row.shop || "";
+        if (!source && type === "payment") {
+          const matches = [...(serialShops.get(normalizeSerial(row.serial)) || [])];
+          if (matches.length === 1) source = matches[0];
+        }
+        if (!groups.has(source)) groups.set(source, []);
+        groups.get(source).push(row);
+      }
+      const dialog = document.createElement("dialog");
+      dialog.id = "uploadTargetDialog";
+      dialog.style.cssText = "width:min(760px,90vw);max-height:85vh;overflow:auto;border:1px solid #ccc;border-radius:12px;padding:24px";
+      const label = d => d.display_name + (d.account_id ? " · Ana Cari: " + (directory.groups.find(g => String(g.id) === String(d.account_id))?.name || "") : " · Ana cari bağlantısı yok");
+      const sources = [...groups.keys()];
+      dialog.innerHTML = `<form><h3>Yüklenecek Cari / Bayi Teyidi</h3><p><b>${type === "stock" ? "Tekinler Satış Excel’i" : "VDM’ye Ödenenler"}</b> · ${e(filename)} · ${rows.length} satır</p><p>Her satır grubunun yükleneceği bayiyi kontrol edin. Ana cari bağlantısı bayi adının yanında gösterilir. Onayınızdan sonra yükleme başlayacaktır.</p>${sources.map((source,index) => {
+        const match = active.filter(d => norm(d.shop) === norm(source) || norm(d.display_name) === norm(source));
+        const known = directory.dealers.some(d => norm(d.shop) === norm(source) || norm(d.display_name) === norm(source));
+        const allowNew = type === "stock" && source && !known;
+        return `<label style="display:block;margin:16px 0">Dosyadaki / seriyle bulunan bayi: <b>${e(source || "Bayi belirlenemedi")}</b> · ${groups.get(source).length} satır<select data-target="${index}" required style="width:100%"><option value="">Yüklenecek bayiyi seçin</option>${active.map(d => `<option value="${e(d.shop)}" ${match.length === 1 && match[0].shop === d.shop ? "selected" : ""}>${e(label(d))}</option>`).join("")}${allowNew ? `<option value="${e(source)}" selected>${e(source)} · Yeni bayi olarak açılacak (ana cari bağlantısı yok)</option>` : ""}</select></label>`;
+      }).join("")}<p role="status">${type === "payment" ? "Seri yalnızca seçtiğiniz bayide aranır. Başka bayideki kayıtlar ödenmiş işaretlenmez." : "Seçtiğiniz bayi, Excel’deki bayi adından farklıysa kayıtlar seçtiğiniz bayiye yüklenir."}</p><button type="button" data-cancel>İptal</button> <button type="submit" class="btn">Cari / Bayi Bilgilerini Onayla ve Yükle</button></form>`;
+      document.body.append(dialog);
+      return await new Promise(resolve => {
+        const finish = result => { dialog.close(); dialog.remove(); resolve(result); };
+        dialog.addEventListener("cancel", event => { event.preventDefault(); finish(null); });
+        dialog.querySelector("[data-cancel]").onclick = () => finish(null);
+        dialog.querySelector("form").onsubmit = event => {
+          event.preventDefault();
+          const targets = sources.map((source,index) => dialog.querySelector(`[data-target="${index}"]`).value);
+          if (targets.some(target => !target)) return;
+          const result = sources.flatMap((source,index) => groups.get(source).map(row => ({...row, shop:targets[index]})));
+          finish(result);
+        };
+        dialog.showModal();
+      });
+    }
+
     async function uploadFile(type) {
       let msg = document.getElementById(type + "msg");
       msg.textContent = "Dosya okunuyor…";
@@ -1361,6 +1406,12 @@
           throw Error(
             "Tekinler Excelinde bayi veya fiyat sütunu eksik. Yükleme durduruldu.",
           );
+        if (type === "stock" || type === "payment") {
+          msg.textContent = "Cari / bayi teyidi bekleniyor…";
+          const confirmed = await confirmUploadTargets(type, f.name, data);
+          if (!confirmed) { msg.textContent = "Yükleme iptal edildi. Kayıt yapılmadı."; return; }
+          data = confirmed;
+        }
         const batch = await api("uploads", "POST", {
           kind: type,
           filename: f.name,
@@ -1375,6 +1426,7 @@
             kind: type,
             filename: f.name,
             batch_id: batch.batch_id,
+            confirmed_targets: type === "stock" || type === "payment",
             rows: data.slice(i, i + chunkSize),
           });
           added += r.added;

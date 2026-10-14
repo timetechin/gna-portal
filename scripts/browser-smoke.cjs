@@ -81,6 +81,14 @@ const workbook = (rows) => {
       .filter({ hasText: shop })
       .click();
   };
+  const confirmTargets = async () => {
+    await page.locator("#uploadTargetDialog").waitFor();
+    const selects = page.locator("#uploadTargetDialog select");
+    for(let i=0;i<await selects.count();i++) {
+      if(!await selects.nth(i).inputValue()) await selects.nth(i).selectOption("Girne Çarşı");
+    }
+    await page.locator("#uploadTargetDialog button[type=submit]").click();
+  };
   const upload = async (kind, name, rows) => {
     await nav("Excel Yükle");
     await page.locator("#" + kind + "file").setInputFiles({
@@ -92,6 +100,7 @@ const workbook = (rows) => {
     await page
       .locator("button[onclick=\"uploadFile('" + kind + "')\"]")
       .click();
+    if(kind === "stock" || kind === "payment") await confirmTargets();
     await page.waitForFunction(
       (k) =>
         document
@@ -222,6 +231,35 @@ const workbook = (rows) => {
     ["9BROWSER-IGNORED", "Yenikent", "Other Phone", 100, "12.10.2026"],
   ]);
   assert(!(await read("items")).some((x) => x.serial === "9BROWSER-IGNORED"));
+  // Opening the confirmation and cancelling must not create an upload or change items.
+  const beforeCancel = await read("imports");
+  await page.locator("button[onclick=\"uploadFile('stock')\"]").click();
+  await page.locator("#uploadTargetDialog").waitFor();
+  assert.equal((await read("imports")).length, beforeCancel.length);
+  await page.locator("#uploadTargetDialog [data-cancel]").click();
+  await page.waitForFunction(() => stockmsg.textContent.includes("Yükleme iptal edildi"));
+  assert.equal((await read("imports")).length, beforeCancel.length);
+  assert.equal(await page.locator("#stockfile").isEnabled(), true);
+  // Explicit stock remapping uses the selected dealer, with reversible provenance.
+  await page.locator("#stockfile").setInputFiles({name:"mapped-stock.xlsx",mimeType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",buffer:workbook([["SeriNo","MusteriKisaAd","Urun","BirimFiyat"],["2TARGET-REMAP","Excel Bayi Adı","Target Phone",10]])});
+  await page.locator("button[onclick=\"uploadFile('stock')\"]").click();
+  await page.locator("#uploadTargetDialog select").selectOption("Girne Çarşı");
+  assert((await page.locator("#uploadTargetDialog select").innerText()).includes("Ana Cari:"));
+  await page.locator("#uploadTargetDialog button[type=submit]").click();
+  await page.waitForFunction(() => stockmsg.textContent.startsWith("Güncellendi:"));
+  assert.equal((await read("items")).find(x => x.serial === "2TARGET-REMAP").shop,"Girne Çarşı");
+  await undo("mapped-stock.xlsx");
+  assert(!(await read("items")).some(x => x.serial === "2TARGET-REMAP"));
+  // A serial belonging to another dealer must never be paid through the selected dealer.
+  await nav("Excel Yükle");
+  await page.locator("#paymentfile").setInputFiles({name:"wrong-dealer-payment.xlsx",mimeType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",buffer:workbook([["SeriNo"],["2BROWSER-TARIFF"]])});
+  await page.locator("button[onclick=\"uploadFile('payment')\"]").click();
+  await page.locator("#uploadTargetDialog select").selectOption("Girne Çarşı");
+  await page.locator("#uploadTargetDialog button[type=submit]").click();
+  await page.waitForFunction(() => paymentmsg.textContent.startsWith("Güncellendi:"));
+  assert(!(await read("items")).find(x => x.serial === "2BROWSER-TARIFF").paid_on);
+  assert((await page.locator("#paymentmsg").innerText()).includes("Güncellendi: 0"));
+
   await nav("Excel Yükle");
   await page.locator("#onlyPrefix2").uncheck();
   await upload("stock", "browser-other.xlsx", [
@@ -273,7 +311,7 @@ const workbook = (rows) => {
   const errorDownload=await errorDownloadPromise;
   const errorWB=XLSX.readFile(await errorDownload.path());
   const errorRows=XLSX.utils.sheet_to_json(errorWB.Sheets[errorWB.SheetNames[0]]);
-  assert.equal(errorRows.length,125);assert.equal(errorRows[124]["Seri / IMEI"],"MISSING-BROWSER-124");assert.equal(errorRows[124].Sebep,"Seri bulunamadı");
+  assert.equal(errorRows.length,125);assert.equal(errorRows[124]["Seri / IMEI"],"MISSING-BROWSER-124");assert.equal(errorRows[124].Sebep,"Seri teyit edilen bayide bulunamadı · Girne Çarşı");
   await undo("missing-report.xlsx");
   await upload("payment","generic-payment-headers.xlsx",[
     ["Ödeme raporu"],
@@ -291,7 +329,7 @@ const workbook = (rows) => {
     await page.waitForFunction(()=>document.getElementById("paymentSerial")?.value==="3"&&document.getElementById("paymentSheet")?.value==="ANA VERILER");
     assert.equal(await page.locator("#paymentSheet").inputValue(),"ANA VERILER");
     const parsed=await page.evaluate(()=>readPaymentRows("payment"));assert.equal(parsed.rows.length,798);assert.equal(parsed.rows[0].source_row,2);
-    await page.locator("button[onclick=\"uploadFile('payment')\"]").click();await page.waitForFunction(()=>paymentmsg.textContent.startsWith("Güncellendi:"));assert((await page.locator("#paymentmsg").innerText()).includes("Güncellendi: 798"));
+    await page.locator("button[onclick=\"uploadFile('payment')\"]").click();await confirmTargets();await page.waitForFunction(()=>paymentmsg.textContent.startsWith("Güncellendi:"));assert((await page.locator("#paymentmsg").innerText()).includes("Güncellendi: 798"));
     await undo(require("node:path").basename(process.env.GNA_PAYMENT_SAMPLE));
     const sampleItems=(await read("items")).filter(x=>x.shop==="Payment Sample Fixture");assert.equal(sampleItems.length,798);assert(sampleItems.every(x=>!x.paid_on));
     await page.evaluate(async id=>{const r=await fetch("/api/uploads/"+id+"/undo",{method:"POST"});if(!r.ok)throw Error("Sample fixture undo failed");},seed.batch_id);
