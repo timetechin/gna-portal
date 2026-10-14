@@ -52,4 +52,4 @@ Orijinal Excel arşivi: yeni XLS/XLSX yüklemelerinde (20 MB’a kadar) dosyanı
 
 Bayi Carileri → Mükerrer Kayıtları Göster yalnızca yönetici ekranında bulunur; API de bayi ve yönetici bayi inceleme oturumlarına kapalıdır. Seçili bayinin kendi kayıtlarında aynı seri/IMEI’ye sahip kayıtlar listelenir; boşluk, baştaki kesme işareti ve güvenli sayısal Excel yazımları normalleştirilir. Ortak seri, kayıtlı seri, kayıt numarası, bayi/ana cari, ürün ve tarihler karşılaştırılabilir; arama ve Excel’e Aktar bulunur. Kayıtlar otomatik değiştirilmez.
 
-Mükerrer Kayıtları Göster düğmesi bayi ürün tablosunun üstünde Sütun filtrelerini temizle yanında yer alır; bayi seçilmemiş toplu görünümlerde kapalıdır. API de zorunlu bayi parametresiyle sorgular ve başka bayilerin kayıtlarını rapora dahil etmez.
+Mükerrer Kayıtları Göster düğmesi bayi ürün tablosunun üstünde Sütun filtrelerini temizle yanında yer alır; toplu bayi görünümünde de çalışır. API zorunlu bayi kapsamıyla sorgular; tek bayi seçiliyken yalnızca o bayi, ana cari/toplu görünümde ise kapsamdaki tüm bayiler birlikte kontrol edilir. Kapsam dışındaki bayiler rapora dahil edilmez.

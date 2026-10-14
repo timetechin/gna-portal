@@ -554,9 +554,12 @@ Bun.serve({
         );
       if (u.role !== "admin") return bad("Yönetici yetkisi gerekli", 403);
       if (path === "/api/duplicate-items" && req.method === "GET") {
-        const shop = String(new URL(req.url).searchParams.get("shop") || "").trim();
-        if (!shop || shop.length > 200) return bad("Mükerrer kontrolü için bir bayi seçin", 400);
-        const records = await run("SELECT id,serial,shop,product,price,shipped,campaign,sold FROM gna_items WHERE shop=$1 ORDER BY id", [shop]);
+        const params = new URL(req.url).searchParams;
+        let shops;
+        try { shops = params.has("shops") ? JSON.parse(params.get("shops")) : [params.get("shop")]; } catch { return bad("Bayi kapsamı geçersiz", 400); }
+        if (!Array.isArray(shops) || !shops.length || shops.length > 10000 || shops.some(shop=>typeof shop!=="string" || !shop.trim() || shop.length>200)) return bad("Mükerrer kontrolü için bayi kapsamı seçin", 400);
+        shops = [...new Set(shops.map(shop=>shop.trim()))];
+        const records = await run("SELECT id,serial,shop,product,price,shipped,campaign,sold FROM gna_items WHERE shop IN (SELECT jsonb_array_elements_text($1::jsonb)) ORDER BY id", [shops]);
         const bySerial = new Map();
         for (const record of records) {
           let serial = String(record.serial || "").trim().replace(/^'/, "").replace(/[\s\u200b\ufeff]/g, "");

@@ -1108,6 +1108,11 @@ test("duplicate serial report normalizes formats and is administrator-only", asy
     expect(same.records.every(r=>r.shop==="Girne Çarşı")).toBe(true);
     const other=await api("duplicate-items?shop="+encodeURIComponent("Yenikent"));
     expect(other.data.groups.some(g=>g.serial==="DUPLICATE-REPORT-01")).toBe(false);
+    const combined=await api("duplicate-items?shops="+encodeURIComponent(JSON.stringify(["Girne Çarşı","Yenikent"])));
+    expect(combined.status).toBe(200);
+    expect(combined.data.groups.find(g=>g.serial==="DUPLICATE-REPORT-01").records.length).toBe(3);
+    expect((await api("duplicate-items?shops=%5B%5D")).status).toBe(400);
+    expect((await api("duplicate-items?shops=invalid")).status).toBe(400);
     expect(report.data.groups.find(g=>g.serial==="2001234567890").records.length).toBe(2);
     expect(report.data.groups.some(g=>g.serial==="UNIQUE-REPORT-01")).toBe(false);
     expect((await api("duplicate-items","GET",undefined,dealerCookie)).status).toBe(403);
