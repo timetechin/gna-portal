@@ -75,6 +75,7 @@ await writeDb.begin(async (tx) => {
   await tx.unsafe(
     "CREATE TABLE IF NOT EXISTS gna_upload_effects(id bigserial PRIMARY KEY,batch_id uuid NOT NULL REFERENCES gna_upload_batches(id),entity text NOT NULL,record_key text NOT NULL,field text NOT NULL,old_value jsonb,new_value jsonb,created_at timestamptz NOT NULL DEFAULT now(),UNIQUE(batch_id,entity,record_key,field))",
   );
+  await tx.unsafe("CREATE TABLE IF NOT EXISTS gna_upload_files(batch_id uuid PRIMARY KEY REFERENCES gna_upload_batches(id),content bytea NOT NULL CHECK(octet_length(content)>0 AND octet_length(content)<=20971520),sha256 text NOT NULL,created_at timestamptz NOT NULL DEFAULT now())");
   await tx.unsafe("ALTER TABLE gna_users ADD COLUMN IF NOT EXISTS account_id bigint REFERENCES gna_main_accounts(id)");
   await tx.unsafe("CREATE INDEX IF NOT EXISTS gna_items_serial_normalized_idx ON gna_items(regexp_replace(serial,'[[:space:]]','','g'))");
   await tx.unsafe(
@@ -352,6 +353,7 @@ async function actor(req) {
 }
 Bun.serve({
   port: Number(Bun.env.PORT || 3000),
+  maxRequestBodySize: 21 * 1024 * 1024,
   async fetch(req) {
     const path = new URL(req.url).pathname;
     try {
@@ -420,8 +422,8 @@ Bun.serve({
         if (u.role !== "admin") return bad("Yönetici yetkisi gerekli", 403);
         return out(
           await run(`SELECT * FROM (
-       SELECT id::text id,kind,filename,created_at,completed_at,reverted_at,username,true reversible,(SELECT count(*)::int FROM gna_upload_effects e WHERE e.batch_id=b.id) changed_count,only_prefix_2 FROM gna_upload_batches b
-       UNION ALL SELECT 'legacy:'||id::text,kind,filename,created_at,created_at,NULL::timestamptz,NULL::text,false,NULL::int,false FROM gna_upload_history) h ORDER BY created_at DESC,id DESC LIMIT 300`),
+       SELECT id::text id,kind,filename,created_at,completed_at,reverted_at,username,true reversible,(SELECT count(*)::int FROM gna_upload_effects e WHERE e.batch_id=b.id) changed_count,only_prefix_2,EXISTS(SELECT 1 FROM gna_upload_files f WHERE f.batch_id=b.id) file_available FROM gna_upload_batches b
+       UNION ALL SELECT 'legacy:'||id::text,kind,filename,created_at,created_at,NULL::timestamptz,NULL::text,false,NULL::int,false,false FROM gna_upload_history) h ORDER BY created_at DESC,id DESC LIMIT 300`),
         );
       }
       if (path === "/api/directory" && req.method === "GET") {
@@ -551,6 +553,41 @@ Bun.serve({
           ),
         );
       if (u.role !== "admin") return bad("Yönetici yetkisi gerekli", 403);
+      const uploadFilePath = path.match(/^\/api\/uploads\/([0-9a-f-]{36})\/file$/i);
+      if (uploadFilePath && req.method === "GET") {
+        const [file] = await run("SELECT b.filename,encode(f.content,'base64') content FROM gna_upload_files f JOIN gna_upload_batches b ON b.id=f.batch_id WHERE f.batch_id=$1", [uploadFilePath[1]]);
+        if (!file) return bad("Bu yüklemenin Excel dosyası saklanmamış", 404);
+        const content = Buffer.from(file.content, "base64"), filename = String(file.filename);
+        return new Response(content, {headers:{
+          "content-type": filename.toLowerCase().endsWith(".xls") ? "application/vnd.ms-excel" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "content-disposition": "attachment; filename=\"Excel-dosyasi." + (filename.toLowerCase().endsWith(".xls") ? "xls" : "xlsx") + "\"; filename*=UTF-8''" + encodeURIComponent(filename).replace(/[!'()*]/g, c=>"%"+c.charCodeAt(0).toString(16)),
+          "content-length": String(content.length), "cache-control":"private, no-store", "x-content-type-options":"nosniff"
+        }});
+      }
+      if (uploadFilePath && req.method === "PUT") {
+        const maxFileSize = 20 * 1024 * 1024;
+        if (Number(req.headers.get("content-length")) > maxFileSize) return bad("Excel dosyası en fazla 20 MB olabilir", 413);
+        const content = Buffer.from(await req.arrayBuffer());
+        if (!content.length || content.length > maxFileSize) return bad("Excel dosyası boş veya 20 MB sınırını aşıyor", 413);
+        const signature = content.subarray(0,8).toString("hex");
+        if (!signature.startsWith("504b0304") && signature !== "d0cf11e0a1b11ae1") return bad("Geçerli bir XLSX veya XLS Excel dosyası seçin", 400);
+        const sha256 = Buffer.from(await crypto.subtle.digest("SHA-256", content)).toString("hex");
+        const result = await writeDb.begin(async tx=>{
+          const [batch] = await tx.unsafe("SELECT * FROM gna_upload_batches WHERE id=$1 FOR UPDATE", [uploadFilePath[1]]);
+          if (!batch) throw new UserError("Yükleme bulunamadı", 404);
+          if (!/\.xlsx?$/i.test(batch.filename)) throw new UserError("Dosya adı XLS veya XLSX olmalı", 400);
+          const [old] = await tx.unsafe("SELECT sha256 FROM gna_upload_files WHERE batch_id=$1", [batch.id]);
+          if (old) {
+            if (old.sha256 !== sha256) throw new UserError("Saklanan Excel dosyası değiştirilemez", 409);
+            return {ok:true,already_saved:true};
+          }
+          if (batch.completed_at || batch.reverted_at) throw new UserError("Bu yükleme kapatılmış; dosyası sonradan değiştirilemez", 409);
+          await tx.unsafe("INSERT INTO gna_upload_files(batch_id,content,sha256) VALUES($1,decode($2,'base64'),$3)", [batch.id,content.toString("base64"),sha256]);
+          return {ok:true};
+        });
+        return out(result);
+      }
+
       if (path === "/api/aliases" && req.method === "GET")
         return out(
           await run(
