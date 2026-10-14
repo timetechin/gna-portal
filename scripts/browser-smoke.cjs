@@ -91,11 +91,12 @@ const workbook = (rows) => {
   };
   const upload = async (kind, name, rows) => {
     await nav("Excel Yükle");
+    const original = workbook(rows);
     await page.locator("#" + kind + "file").setInputFiles({
       name,
       mimeType:
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      buffer: workbook(rows),
+      buffer: original,
     });
     await page
       .locator("button[onclick=\"uploadFile('" + kind + "')\"]")
@@ -108,6 +109,10 @@ const workbook = (rows) => {
           .textContent.startsWith("Güncellendi:"),
       kind,
     );
+    const history=page.locator("#importhistory tr").filter({has:page.locator("td")}).filter({hasText:name}).first();
+    const [download]=await Promise.all([page.waitForEvent("download"),history.getByRole("link",{name:"Excel’i İndir",exact:true}).click()]);
+    assert.equal(download.suggestedFilename(),name);
+    assert.deepEqual(fs.readFileSync(await download.path()),original);
   };
   const undo = async (name) => {
     await nav("Excel Yükle");
@@ -268,6 +273,10 @@ const workbook = (rows) => {
   ]);
   assert((await read("items")).some((x) => x.serial === "9BROWSER-OTHER"));
   await undo("browser-other.xlsx");
+  const undoneArchive=page.locator("#importhistory tr").filter({has:page.locator("td")}).filter({hasText:"browser-other.xlsx"}).first();
+  assert((await undoneArchive.innerText()).includes("Geri alındı"));
+  assert.equal(await undoneArchive.getByRole("link",{name:"Excel’i İndir",exact:true}).count(),1);
+
   await page.locator("#onlyPrefix2").check();
   await openDealer("Girne Çarşı");
   assert(

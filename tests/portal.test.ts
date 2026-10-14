@@ -1056,3 +1056,41 @@ test("confirmed VDM payment stays inside chosen dealer and rejects missing or cl
   await api("uploads/"+paid.data.batch_id+"/undo","POST");
   await api("uploads/"+seed.data.batch_id+"/undo","POST");
 });
+
+
+test("original XLSX/XLS archives preserve bytes, permissions and undo history", async () => {
+  const XLSX = await import("xlsx");
+  for(const bookType of ["xlsx", "xls"] as const) {
+    const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([["SeriNo","Bayi"],["ARCHIVE-ONE","Girne Çarşı"]]),"Data");
+    const content=Buffer.from(XLSX.write(wb,{type:"buffer",bookType}));
+    const batch=await api("uploads","POST",{kind:"stock",filename:"Özgün Dosya (1)."+bookType});
+    const path="/api/uploads/"+batch.data.batch_id+"/file";
+    const put=(body=content,cookie=adminCookie,extra={})=>fetch(base+path,{method:"PUT",headers:{Cookie:cookie,...extra},body});
+    expect((await put(content,"")).status).toBe(401);
+    expect((await put(content,dealerCookie)).status).toBe(403);
+    expect((await put(content,adminCookie,{"x-gna-preview-shop":encodeURIComponent("Girne Çarşı")})).status).toBe(403);
+    expect((await put(Buffer.from("not Excel"))).status).toBe(400);
+    expect((await put(Buffer.alloc(0))).status).toBe(413);
+    expect((await put()).status).toBe(200);
+    expect((await put()).status).toBe(200);
+    expect((await put(Buffer.concat([content,Buffer.from("changed")]))).status).toBe(409);
+    const response=await fetch(base+path,{headers:{Cookie:adminCookie}});
+    expect(response.status).toBe(200);
+    expect(Buffer.from(await response.arrayBuffer())).toEqual(content);
+    expect(response.headers.get("content-disposition")).toContain("filename*=UTF-8''%C3%96zg%C3%BCn%20Dosya%20(1).".replace("(1)","%281%29"));
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    expect((await fetch(base+path,{headers:{Cookie:dealerCookie}})).status).toBe(403);
+    const [saved]=await db.unsafe("SELECT sha256,octet_length(content)::int size FROM gna_upload_files WHERE batch_id=$1",[batch.data.batch_id]);
+    expect(saved.sha256).toBe(Buffer.from(await crypto.subtle.digest("SHA-256",content)).toString("hex"));
+    expect(saved.size).toBe(content.length);
+    expect((await api("imports")).data.find(x=>x.id===batch.data.batch_id).file_available).toBe(true);
+    await api("uploads/"+batch.data.batch_id+"/complete","POST");
+    await api("uploads/"+batch.data.batch_id+"/undo","POST");
+    expect(Buffer.from(await (await fetch(base+path,{headers:{Cookie:adminCookie}})).arrayBuffer())).toEqual(content);
+  }
+  const nofile=await api("uploads","POST",{kind:"payment",filename:"missing-original.xlsx"});
+  const path="/api/uploads/"+nofile.data.batch_id+"/file";
+  expect((await fetch(base+path,{headers:{Cookie:adminCookie}})).status).toBe(404);
+  expect((await api("imports")).data.find(x=>x.id===nofile.data.batch_id).file_available).toBe(false);
+  expect((await fetch(base+path,{method:"PUT",headers:{Cookie:adminCookie},body:Buffer.alloc(20*1024*1024+1)})).status).toBe(413);
+});
