@@ -1031,3 +1031,28 @@ test("dashboard separates current-month profit, unpaid due categories, stock and
  expect((await api("items")).data.filter(x=>x.serial.startsWith("2BULK")).map(x=>x.id)).toEqual([rows[2].id]);
  await api("items/"+rows[2].id,"DELETE");
  });
+
+
+test("confirmed VDM payment stays inside chosen dealer and rejects missing or closed targets", async () => {
+  const seed = await api("import", "POST", {kind:"stock",filename:"target-seed.xlsx",rows:[
+    {serial:"TARGET-SCOPE-ONE",shop:"Girne Çarşı",product:"Target",price:1},
+    {serial:"TARGET-SCOPE-DUP",shop:"Girne Çarşı",product:"Target",price:1},
+    {serial:"TARGET-SCOPE-DUP",shop:"Yenikent",product:"Target",price:1}
+  ]});
+  expect(seed.status).toBe(200);
+  const wrong = await api("import", "POST", {kind:"payment",filename:"wrong-target.xlsx",confirmed_targets:true,rows:[{serial:"TARGET-SCOPE-ONE",shop:"Yenikent"}]});
+  expect(wrong.data.added).toBe(0);
+  expect(wrong.data.issues[0].reason).toContain("teyit edilen bayide");
+  const paid = await api("import", "POST", {kind:"payment",filename:"right-target.xlsx",confirmed_targets:true,rows:[{serial:"TARGET-SCOPE-DUP",shop:"Yenikent"}]});
+  expect(paid.data.added).toBe(1);
+  const result = await db.unsafe("SELECT shop,paid_on FROM gna_items WHERE serial='TARGET-SCOPE-DUP' ORDER BY shop");
+  expect(result.find(x=>x.shop==="Girne Çarşı").paid_on).toBeNull();
+  expect(result.find(x=>x.shop==="Yenikent").paid_on).toBe("Ödendi");
+  const missing = await api("import", "POST", {kind:"payment",filename:"no-target.xlsx",confirmed_targets:true,rows:[{serial:"TARGET-SCOPE-ONE"}]});
+  expect(missing.status).toBe(400);
+  await db.unsafe("INSERT INTO gna_dealer_profiles(shop,display_name,active) VALUES('Closed Target','Closed Target',false)");
+  const closed = await api("import", "POST", {kind:"stock",filename:"closed-target.xlsx",confirmed_targets:true,rows:[{serial:"CLOSED-TARGET",shop:"Closed Target",price:1}]});
+  expect(closed.status).toBe(400);
+  await api("uploads/"+paid.data.batch_id+"/undo","POST");
+  await api("uploads/"+seed.data.batch_id+"/undo","POST");
+});

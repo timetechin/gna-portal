@@ -1133,6 +1133,15 @@ Bun.serve({
           return bad("Bayi veya fiyat eksik; dosya işlenmedi");
         if(b.kind==="sale_price" && b.rows.some(x=>typeof x.cash_sale_price!=="number" || !Number.isFinite(x.cash_sale_price) || x.cash_sale_price<0 || x.cash_sale_price>1e9))return bad("Satış fiyatları geçerli sayılar olmalı");
         const result = await writeDb.begin(async (tx) => {
+          if (b.confirmed_targets === true && ["stock", "payment"].includes(b.kind)) {
+            const targets = [...new Set(b.rows.map(x => typeof x.shop === "string" ? x.shop.trim() : ""))];
+            if (targets.some(shop => !shop || shop.length > 200)) throw new UserError("Yüklenecek bayi teyidi gerekli");
+            for (const shop of targets) {
+              const blocked = await tx.unsafe("SELECT 1 FROM gna_dealer_profiles WHERE shop=$1 AND NOT active UNION SELECT 1 FROM gna_dealer_accounts d JOIN gna_main_accounts a ON a.id=d.account_id WHERE d.shop=$1 AND NOT a.active", [shop]);
+              if (blocked.length) throw new UserError("Seçilen bayi veya ana cari kapalı: " + shop);
+              if (b.kind === "payment" && !(await tx.unsafe("SELECT 1 FROM (SELECT shop FROM gna_items UNION SELECT shop FROM gna_dealer_profiles) s WHERE shop=$1 LIMIT 1", [shop])).length) throw new UserError("Seçilen bayi bulunamadı: " + shop);
+            }
+          }
           const batch = await getBatch(tx, u, b, b.kind);
           let added = 0,
             skipped = 0;
@@ -1237,13 +1246,14 @@ Bun.serve({
             } else {
               let matches = await tx.unsafe("SELECT * FROM gna_items WHERE serial=$1 OR serial=$2 FOR UPDATE",[serial,rawSerial]);
               if(!matches.length)matches=await tx.unsafe("SELECT * FROM gna_items WHERE regexp_replace(serial,'[[:space:]]','','g')=$1 FOR UPDATE",[serial]);
+              if(b.kind === "payment" && b.confirmed_targets === true) matches = matches.filter(row => row.shop === String(x.shop).trim());
               if(matches.length>1&&x.shop){const narrowed=matches.filter(row=>row.shop===String(x.shop).trim());if(narrowed.length)matches=narrowed;}
               if (matches.length !== 1) {
                 report(
                   serial,
                   matches.length
                     ? "Seri birden fazla bayide bulundu · "+matches.map(row=>row.shop).join(", ")+(x.shop?" · Dosyadaki bayi: "+String(x.shop):"")
-                    : "Seri bulunamadı",
+                    : b.kind === "payment" && b.confirmed_targets === true ? "Seri teyit edilen bayide bulunamadı · " + x.shop : "Seri bulunamadı",
                 );
                 skipped++;
                 continue;
