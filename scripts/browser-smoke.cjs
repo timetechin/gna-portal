@@ -149,6 +149,13 @@ const workbook = (rows) => {
   await page.locator("#duplicateRecordsSearch").fill("NO-MATCH-DUPLICATE");
   assert((await page.locator("#duplicateRecordsTable").innerText()).includes("Aramaya uygun kayıt bulunamadı"));
   await page.locator("#duplicateRecordsDialog [data-close]").click();
+  await page.evaluate(()=>openDashboardBucket("active",true));
+  assert.equal(await page.locator("#showDuplicateRecordsButton").isEnabled(),true);
+  await page.getByRole("button",{name:"Mükerrer Kayıtları Göster",exact:true}).click();
+  await page.locator("#duplicateRecordsSearch").fill("2BROWSER-DUPLICATE");
+  await page.waitForFunction(()=>document.querySelectorAll("#duplicateRecordsTable tbody tr").length===3);
+  assert((await page.locator("#duplicateRecordsTable").innerText()).includes("Yenikent"));
+  await page.locator("#duplicateRecordsDialog [data-close]").click();
   await page.evaluate(async id=>{const r=await fetch("/api/uploads/"+id+"/undo",{method:"POST"});if(!r.ok)throw Error("Duplicate fixture undo failed");},duplicateSeed.batch_id);
   await nav("Bayi Carileri");
   assert(

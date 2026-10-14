@@ -700,18 +700,19 @@
     }
     let duplicateRecords = [];
     async function showDuplicateRecords() {
-      if (me.role !== "admin" || !selectedDealer || document.getElementById("duplicateRecordsDialog")) return;
-      const duplicateShop = selectedDealer;
+      if (me.role !== "admin" || !contextShops().length || document.getElementById("duplicateRecordsDialog")) return;
+      const duplicateShops = contextShops();
+      const duplicateTitle = selectedDealer ? shopName(selectedDealer) : selectedGroup ? directory.groups.find(g=>String(g.id)===String(selectedGroup))?.name || "Seçili Bayiler" : "Tüm Bayiler";
       const dialog = document.createElement("dialog");
       dialog.id = "duplicateRecordsDialog";
       dialog.style.cssText = "width:min(1100px,94vw);max-height:85vh;overflow:auto;border:1px solid #ccc;border-radius:12px;padding:24px";
-      dialog.innerHTML = '<h3>Mükerrer Kayıtlar · ' + e(shopName(duplicateShop)) + '</h3><p>Yalnızca seçili bayinin kendi kayıtlarında tekrarlanan seri/IMEI’ler gösterilir. Boşluk, baştaki kesme işareti ve sayısal Excel yazımı farkları dikkate alınır.</p><p id="duplicateRecordsStatus" role="status">Kayıtlar kontrol ediliyor…</p><label>Seri / bayi / ürün ara <input id="duplicateRecordsSearch" oninput="renderDuplicateRecords()"></label><button onclick="exportDuplicateRecords()">Excel’e Aktar</button><div id="duplicateRecordsTable" class="scroll"></div><button data-close class="btn">Kapat</button>';
+      dialog.innerHTML = '<h3>Mükerrer Kayıtlar · ' + e(duplicateTitle) + '</h3><p>Seçili bayi kapsamındaki tekrarlanan seri/IMEI’ler gösterilir. Toplu görünümde kapsamdaki tüm bayiler birlikte kontrol edilir. Boşluk, baştaki kesme işareti ve sayısal Excel yazımı farkları dikkate alınır.</p><p id="duplicateRecordsStatus" role="status">Kayıtlar kontrol ediliyor…</p><label>Seri / bayi / ürün ara <input id="duplicateRecordsSearch" oninput="renderDuplicateRecords()"></label><button onclick="exportDuplicateRecords()">Excel’e Aktar</button><div id="duplicateRecordsTable" class="scroll"></div><button data-close class="btn">Kapat</button>';
       const close = () => {dialog.close();dialog.remove();duplicateRecords=[];};
       dialog.querySelector("[data-close]").onclick = close;
       dialog.addEventListener("cancel",event=>{event.preventDefault();close();});
       document.body.append(dialog);dialog.showModal();
       try {
-        const result = await api("duplicate-items?shop=" + encodeURIComponent(duplicateShop));
+        const result = await api("duplicate-items?shops=" + encodeURIComponent(JSON.stringify(duplicateShops)));
         if (!dialog.isConnected) return;
         duplicateRecords = result.groups.flatMap(group=>group.records.map(record=>({...record,duplicateSerial:group.serial,duplicateCount:group.records.length})));
         duplicateRecordsStatus.textContent = result.groups.length ? result.groups.length + " mükerrer seri / IMEI · " + duplicateRecords.length + " kayıt" : "Mükerrer kayıt bulunamadı.";
@@ -1102,8 +1103,8 @@
     }
 
     function draw() {
-      showDuplicateRecordsButton.disabled = !selectedDealer;
-      showDuplicateRecordsButton.title = selectedDealer ? shopName(selectedDealer) + " bayisinin mükerrer kayıtları" : "Önce bir bayi seçin";
+      showDuplicateRecordsButton.disabled = !contextShops().length;
+      showDuplicateRecordsButton.title = selectedDealer ? shopName(selectedDealer) + " bayisinin mükerrer kayıtları" : "Seçili bayi kapsamının mükerrer kayıtları";
       let q = (search.value || "").toLocaleLowerCase("tr"),
         filtered = items.filter(
           (x) =>
